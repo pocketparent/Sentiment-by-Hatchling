@@ -5,25 +5,34 @@ import { JournalEntry } from './types';
 
 function App() {
   const [selectedEntry, setSelectedEntry] = useState<JournalEntry | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const handleSelectEntry = (entry: JournalEntry | null) => {
+    setSelectedEntry(entry);
+    setIsModalOpen(true);
+  };
 
   return (
     <div className="app-container relative min-h-screen bg-gray-50">
-      <JournalView onSelectEntry={setSelectedEntry} />
+      <JournalView onSelectEntry={handleSelectEntry} />
 
-      {/* Floating “+” Button */}
+      {/* Floating New Entry Button */}
       <button
-        className="fixed bottom-6 right-6 h-14 w-14 rounded-full bg-black text-white text-2xl shadow-lg hover:bg-gray-800"
-        onClick={() => setSelectedEntry(null)} // null = new entry
+        className="fixed bottom-6 right-6 z-50 rounded-full bg-black p-4 text-white text-2xl shadow-xl hover:bg-gray-800"
+        onClick={() => handleSelectEntry(null)}
         aria-label="New Entry"
       >
         +
       </button>
 
       {/* Modal */}
-      {selectedEntry !== undefined && (
+      {isModalOpen && (
         <EntryModal
           entry={selectedEntry}
-          onClose={() => setSelectedEntry(undefined)}
+          onClose={() => {
+            setIsModalOpen(false);
+            setSelectedEntry(null);
+          }}
         />
       )}
     </div>
