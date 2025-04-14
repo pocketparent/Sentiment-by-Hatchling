@@ -1,36 +1,22 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { JournalEntry } from '../types';
-import { fetchEntries } from '../api/entries';
 import EntryCard from './EntryCard';
 import EmptyState from './EmptyState';
 
-const JournalView: React.FC = () => {
-  const [entries, setEntries] = useState<JournalEntry[]>([]);
-  const [loading, setLoading] = useState(true);
+interface Props {
+  entries: JournalEntry[];
+  loading: boolean;
+  onSelectEntry: (entry: JournalEntry) => void;
+}
 
-  useEffect(() => {
-    const loadEntries = async () => {
-      try {
-        const data = await fetchEntries();
-        setEntries(data);
-      } catch (error) {
-        console.error('Failed to fetch entries:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadEntries();
-  }, []);
-
+const JournalView: React.FC<Props> = ({ entries, loading, onSelectEntry }) => {
   if (loading) return <p className="text-center text-muted">Loading your journal...</p>;
-
   if (entries.length === 0) return <EmptyState />;
 
   return (
     <div className="space-y-4 px-4 py-6">
       {entries.map((entry) => (
-        <EntryCard key={entry.entry_id} entry={entry} />
+        <EntryCard key={entry.entry_id} entry={entry} onClick={() => onSelectEntry(entry)} />
       ))}
     </div>
   );
