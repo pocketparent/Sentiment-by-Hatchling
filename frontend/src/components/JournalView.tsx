@@ -42,24 +42,29 @@ const JournalView: React.FC = () => {
     }
   }, [search, entries]);
 
-  if (loading) return <p className="text-center text-muted">Loading your journal...</p>;
-  if (filteredEntries.length === 0) return <EmptyState />;
-
   return (
-    <div className="relative px-4 py-6">
+    <div className="max-w-2xl mx-auto px-4 pb-24 pt-6">
+      <h2 className="text-2xl font-semibold mb-4 text-center">Your Saved Memories</h2>
+
       <input
         type="text"
-        className="mb-4 w-full rounded-xl border px-4 py-2 text-sm"
+        className="mb-6 w-full rounded-xl border border-gray-300 px-4 py-2 text-sm focus:outline-none focus:ring focus:ring-blue-200"
         placeholder="Search memories..."
         value={search}
         onChange={(e) => setSearch(e.target.value)}
       />
 
-      <div className="space-y-4 pb-24">
-        {filteredEntries.map((entry) => (
-          <EntryCard key={entry.entry_id} entry={entry} onClick={() => setSelectedEntry(entry)} />
-        ))}
-      </div>
+      {loading ? (
+        <p className="text-center text-muted">Loading your journal...</p>
+      ) : filteredEntries.length === 0 ? (
+        <EmptyState />
+      ) : (
+        <div className="space-y-4">
+          {filteredEntries.map((entry) => (
+            <EntryCard key={entry.entry_id} entry={entry} onClick={() => setSelectedEntry(entry)} />
+          ))}
+        </div>
+      )}
 
       <button
         className="fixed bottom-6 right-6 rounded-full bg-black px-6 py-3 text-white shadow-lg hover:bg-gray-800"
