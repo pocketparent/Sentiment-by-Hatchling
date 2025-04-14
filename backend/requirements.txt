@@ -3,3 +3,4 @@ firebase-admin
 openai
 stripe
 gunicorn
+flask-cors
