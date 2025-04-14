@@ -2,9 +2,9 @@ import React from 'react';
 
 const EmptyState: React.FC = () => {
   return (
-    <div className="text-center text-muted py-10">
-      <p className="text-lg font-medium">When a moment feels worth saving…</p>
-      <p className="text-sm text-gray-500 mt-2">Text it to Hatchling. We'll hold onto it for you. 🐣</p>
+    <div className="text-center mt-20 text-gray-500">
+      <p className="text-xl mb-2 font-medium">Nothing here yet...</p>
+      <p className="text-sm">Tap <span className="font-semibold">+ New Entry</span> to add your first memory 🐣</p>
     </div>
   );
 };
