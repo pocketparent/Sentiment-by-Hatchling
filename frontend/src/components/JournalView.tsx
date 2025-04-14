@@ -7,15 +7,17 @@ import EntryModal from './EntryModal';
 
 const JournalView: React.FC = () => {
   const [entries, setEntries] = useState<JournalEntry[]>([]);
+  const [filteredEntries, setFilteredEntries] = useState<JournalEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedEntry, setSelectedEntry] = useState<JournalEntry | null>(null);
-  const [showModal, setShowModal] = useState(false);
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
     const loadEntries = async () => {
       try {
         const data = await fetchEntries();
         setEntries(data);
+        setFilteredEntries(data);
       } catch (error) {
         console.error('Failed to fetch entries:', error);
       } finally {
@@ -26,45 +28,50 @@ const JournalView: React.FC = () => {
     loadEntries();
   }, []);
 
-  const openNewEntry = () => {
-    setSelectedEntry(null);
-    setShowModal(true);
-  };
+  useEffect(() => {
+    if (search.trim() === '') {
+      setFilteredEntries(entries);
+    } else {
+      const lowerSearch = search.toLowerCase();
+      setFilteredEntries(
+        entries.filter((entry) =>
+          entry.content?.toLowerCase().includes(lowerSearch) ||
+          entry.tags?.some(tag => tag.toLowerCase().includes(lowerSearch))
+        )
+      );
+    }
+  }, [search, entries]);
 
   if (loading) return <p className="text-center text-muted">Loading your journal...</p>;
+  if (filteredEntries.length === 0) return <EmptyState />;
 
   return (
-    <div className="relative space-y-4 px-4 py-6">
-      {entries.length === 0 ? (
-        <EmptyState />
-      ) : (
-        entries.map((entry) => (
-          <EntryCard
-            key={entry.entry_id}
-            entry={entry}
-            onClick={() => {
-              setSelectedEntry(entry);
-              setShowModal(true);
-            }}
-          />
-        ))
-      )}
+    <div className="relative px-4 py-6">
+      <input
+        type="text"
+        className="mb-4 w-full rounded-xl border px-4 py-2 text-sm"
+        placeholder="Search memories..."
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+      />
 
-      {/* Floating "New Entry" button */}
+      <div className="space-y-4 pb-24">
+        {filteredEntries.map((entry) => (
+          <EntryCard key={entry.entry_id} entry={entry} onClick={() => setSelectedEntry(entry)} />
+        ))}
+      </div>
+
       <button
-        onClick={openNewEntry}
-        className="fixed bottom-6 right-6 bg-blue-600 text-white px-4 py-2 rounded-full shadow-lg hover:bg-blue-700"
+        className="fixed bottom-6 right-6 rounded-full bg-black px-6 py-3 text-white shadow-lg hover:bg-gray-800"
+        onClick={() => setSelectedEntry(null)}
       >
-        + New Memory
+        + New Entry
       </button>
 
-      {/* Entry Modal */}
-      {showModal && (
-        <EntryModal
-          entry={selectedEntry}
-          onClose={() => setShowModal(false)}
-        />
-      )}
+      <EntryModal
+        entry={selectedEntry}
+        onClose={() => setSelectedEntry(null)}
+      />
     </div>
   );
 };
