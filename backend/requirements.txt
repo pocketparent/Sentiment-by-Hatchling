@@ -4,3 +4,4 @@ openai
 stripe
 gunicorn
 flask-cors
+python-dotenv
