@@ -25,7 +25,7 @@ function App() {
         <img
           src="/hatchling-logo.png"
           alt="Hatchling logo"
-          className="h-12 mx-auto mt-6 mb-2"
+          className="h-20 mx-auto mt-6 mb-2"
         />
 
         <Routes>
