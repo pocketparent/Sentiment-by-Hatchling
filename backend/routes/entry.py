@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from utils.media import upload_media_to_s3
+from utils.media import upload_media_to_firebase
 from utils.openai import generate_tags, transcribe_voice
 from models.entry_store import store_entry
 from datetime import datetime
