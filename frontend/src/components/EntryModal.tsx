@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { JournalEntry } from '../types';
 import { createEntry } from '../api/entries';
 
@@ -15,13 +15,32 @@ const EntryModal: React.FC<EntryModalProps> = ({ entry, onClose }) => {
   const [media, setMedia] = useState<File | null>(null);
   const [error, setError] = useState('');
 
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [onClose]);
+
+  const handleOverlayClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.target === e.currentTarget) {
+      onClose();
+    }
+  };
+
   const handleSubmit = async () => {
+    if (!content || !dateOfMemory) {
+      setError('Please fill in all required fields (memory and date).');
+      return;
+    }
+
     const formData = new FormData();
     formData.append('content', content);
     formData.append('tags', tags);
     formData.append('date_of_memory', dateOfMemory);
     formData.append('privacy', privacy);
-    formData.append('author_id', 'demo'); // Replace this with real user
+    formData.append('author_id', 'demo'); // Replace with real user
 
     if (media) formData.append('media', media);
 
@@ -34,10 +53,13 @@ const EntryModal: React.FC<EntryModalProps> = ({ entry, onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-40 backdrop-blur-sm flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl w-full max-w-md p-6 relative shadow-xl">
+    <div
+      className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50"
+      onClick={handleOverlayClick}
+    >
+      <div className="bg-[#fefcf9] rounded-xl w-full max-w-md p-6 relative shadow-xl">
         <button
-          className="absolute top-4 right-4 text-gray-500 hover:text-black"
+          className="absolute top-4 right-4 text-neutral-400 hover:text-black text-xl"
           onClick={onClose}
         >
           ×
@@ -51,7 +73,7 @@ const EntryModal: React.FC<EntryModalProps> = ({ entry, onClose }) => {
             placeholder="Write your memory here..."
             value={content}
             onChange={(e) => setContent(e.target.value)}
-            className="w-full border border-neutral-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-400"
+            className="w-full border border-neutral-300 rounded-lg px-4 py-2 text-sm bg-white placeholder-neutral-400"
             rows={4}
           />
 
@@ -60,31 +82,34 @@ const EntryModal: React.FC<EntryModalProps> = ({ entry, onClose }) => {
             placeholder="e.g. milestones, vacation"
             value={tags}
             onChange={(e) => setTags(e.target.value)}
-            className="w-full border border-neutral-300 rounded-lg px-4 py-2 text-sm"
+            className="w-full border border-neutral-300 rounded-lg px-4 py-2 text-sm bg-white placeholder-neutral-400"
           />
 
           <input
             type="date"
             value={dateOfMemory}
             onChange={(e) => setDateOfMemory(e.target.value)}
-            className="w-full border border-neutral-300 rounded-lg px-4 py-2 text-sm"
+            className="w-full border border-neutral-300 rounded-lg px-4 py-2 text-sm bg-white"
           />
 
           <select
             value={privacy}
             onChange={(e) => setPrivacy(e.target.value)}
-            className="w-full border border-neutral-300 rounded-lg px-4 py-2 text-sm"
+            className="w-full border border-neutral-300 rounded-lg px-4 py-2 text-sm bg-white"
           >
             <option value="private">Private</option>
             <option value="shared">Shared</option>
           </select>
 
-          <input
-            type="file"
-            accept="image/*,video/*"
-            onChange={(e) => setMedia(e.target.files?.[0] || null)}
-            className="block w-full text-sm text-gray-700 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:bg-neutral-200 file:text-neutral-800 hover:file:bg-neutral-300"
-          />
+          <label className="block">
+            <span className="sr-only">Choose media</span>
+            <input
+              type="file"
+              accept="image/*,video/*"
+              onChange={(e) => setMedia(e.target.files?.[0] || null)}
+              className="block w-full text-sm text-neutral-700 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-neutral-100 file:text-neutral-700 hover:file:bg-neutral-200"
+            />
+          </label>
         </div>
 
         <button
