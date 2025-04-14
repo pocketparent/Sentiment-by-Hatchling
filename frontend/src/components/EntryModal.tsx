@@ -1,105 +1,132 @@
 import React, { useState } from 'react';
-import { createEntry } from '../api/entries';
 import { JournalEntry } from '../types';
 
 interface EntryModalProps {
-  entry?: JournalEntry | null; // for future editing support
   onClose: () => void;
+  onSuccess: () => void;
+  entry?: JournalEntry | null;
 }
 
-const EntryModal: React.FC<EntryModalProps> = ({ onClose }) => {
+const EntryModal: React.FC<EntryModalProps> = ({ onClose, onSuccess }) => {
   const [content, setContent] = useState('');
-  const [authorId, setAuthorId] = useState('demo-user'); // Replace with real user ID
   const [dateOfMemory, setDateOfMemory] = useState('');
-  const [tags, setTags] = useState<string[]>([]);
+  const [authorId, setAuthorId] = useState('');
+  const [tags, setTags] = useState('');
   const [privacy, setPrivacy] = useState('private');
-  const [mediaFile, setMediaFile] = useState<File | null>(null);
+  const [media, setMedia] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
-    setError(null);
+
+    const formData = new FormData();
+    formData.append('content', content);
+    formData.append('author_id', authorId);
+    formData.append('date_of_memory', dateOfMemory);
+    formData.append('privacy', privacy);
+    if (tags) {
+      tags.split(',').forEach(tag => formData.append('tags', tag.trim()));
+    }
+    if (media) {
+      formData.append('media', media);
+    }
 
     try {
-      const formData = new FormData();
-      formData.append('content', content);
-      formData.append('author_id', authorId);
-      formData.append('date_of_memory', dateOfMemory);
-      formData.append('privacy', privacy);
-      tags.forEach((tag) => formData.append('tags', tag));
-      if (mediaFile) {
-        formData.append('media', mediaFile);
+      const response = await fetch('/entry', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create entry');
       }
 
-      await createEntry(formData);
-      onClose(); // Close modal after successful submission
+      onSuccess(); // 🔄 Trigger a reload in parent
+      onClose();
     } catch (err) {
-      setError('Something went wrong. Please try again.');
       console.error(err);
+      alert('Something went wrong while saving your entry.');
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
-      <div className="bg-white rounded-2xl shadow-lg p-6 w-full max-w-md">
-        <h2 className="text-xl font-semibold mb-4">New Memory</h2>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <textarea
-            placeholder="What do you want to remember?"
-            className="w-full p-3 border rounded-xl"
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            required
-          />
-          <input
-            type="date"
-            className="w-full p-3 border rounded-xl"
-            value={dateOfMemory}
-            onChange={(e) => setDateOfMemory(e.target.value)}
-            required
-          />
-          <input
-            type="text"
-            className="w-full p-3 border rounded-xl"
-            placeholder="Tags (comma separated)"
-            onChange={(e) => setTags(e.target.value.split(',').map(t => t.trim()))}
-          />
-          <select
-            className="w-full p-3 border rounded-xl"
-            value={privacy}
-            onChange={(e) => setPrivacy(e.target.value)}
+    <div className="fixed inset-0 z-50 bg-black bg-opacity-40 flex items-center justify-center p-4">
+      <form
+        onSubmit={handleSubmit}
+        className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4"
+      >
+        <h2 className="text-xl font-semibold">New Memory</h2>
+
+        <input
+          type="text"
+          placeholder="Author ID"
+          value={authorId}
+          onChange={(e) => setAuthorId(e.target.value)}
+          className="w-full border rounded p-2"
+          required
+        />
+
+        <input
+          type="date"
+          value={dateOfMemory}
+          onChange={(e) => setDateOfMemory(e.target.value)}
+          className="w-full border rounded p-2"
+          required
+        />
+
+        <textarea
+          placeholder="What's on your mind?"
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+          className="w-full border rounded p-2"
+          rows={4}
+          required
+        />
+
+        <input
+          type="text"
+          placeholder="Tags (comma-separated)"
+          value={tags}
+          onChange={(e) => setTags(e.target.value)}
+          className="w-full border rounded p-2"
+        />
+
+        <select
+          value={privacy}
+          onChange={(e) => setPrivacy(e.target.value)}
+          className="w-full border rounded p-2"
+        >
+          <option value="private">Private</option>
+          <option value="shared">Shared</option>
+        </select>
+
+        <input
+          type="file"
+          onChange={(e) => setMedia(e.target.files?.[0] || null)}
+          className="w-full"
+          accept="image/*,audio/*,video/*"
+        />
+
+        <div className="flex justify-end space-x-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 rounded border border-gray-300"
           >
-            <option value="private">Private</option>
-            <option value="shared">Shared</option>
-          </select>
-          <input
-            type="file"
-            accept="image/*,video/*,audio/*"
-            onChange={(e) => setMediaFile(e.target.files?.[0] || null)}
-          />
-          {error && <p className="text-red-600">{error}</p>}
-          <div className="flex justify-between mt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 bg-gray-200 rounded-xl"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={submitting}
-              className="px-4 py-2 bg-blue-600 text-white rounded-xl"
-            >
-              {submitting ? 'Saving...' : 'Save Memory'}
-            </button>
-          </div>
-        </form>
-      </div>
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={submitting}
+            className="px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-50"
+          >
+            {submitting ? 'Saving...' : 'Save'}
+          </button>
+        </div>
+      </form>
     </div>
   );
 };
