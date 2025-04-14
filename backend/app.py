@@ -1,45 +1,48 @@
-from flask import Flask, jsonify
+from flask import Flask
 from flask_cors import CORS
-from dotenv import load_dotenv
-import os
-import logging
-
 from routes.entry import entry_bp
 from routes.auth import auth_bp
 from routes.invite import invite_bp
 from routes.export import export_bp
 
+import os
+from dotenv import load_dotenv
+import firebase_admin
+from firebase_admin import credentials
+
 # Load environment variables
 load_dotenv()
 
-def create_app():
-    app = Flask(__name__)
+# ✅ Firebase initialization
+cred = credentials.Certificate({
+    "type": "service_account",
+    "project_id": os.getenv("FIREBASE_PROJECT_ID"),
+    "private_key_id": os.getenv("FIREBASE_PRIVATE_KEY_ID"),
+    "private_key": os.getenv("FIREBASE_PRIVATE_KEY").replace('\\n', '\n'),
+    "client_email": os.getenv("FIREBASE_CLIENT_EMAIL"),
+    "client_id": os.getenv("FIREBASE_CLIENT_ID"),
+    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+    "token_uri": "https://oauth2.googleapis.com/token",
+    "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+    "client_x509_cert_url": os.getenv("FIREBASE_CLIENT_CERT_URL")
+})
+firebase_admin.initialize_app(cred, {
+    "storageBucket": os.getenv("FIREBASE_STORAGE_BUCKET")
+})
 
-    # Configure CORS
-    CORS(app, origins=[os.getenv("FRONTEND_ORIGIN", "https://myhatchling.ai")])
+# Create the app
+app = Flask(__name__)
+CORS(app, origins=["https://myhatchling.ai"])
 
-    # Basic Logging
-    logging.basicConfig(level=logging.INFO)
-    app.logger.info("Hatchling backend starting up...")
+@app.route("/", methods=["GET"])
+def index():
+    return {"status": "ok", "message": "Hatchling API is live"}, 200
 
-    # Health check route
-    @app.route("/", methods=["GET"])
-    def index():
-        return jsonify({
-            "status": "ok",
-            "message": "Hatchling API is live"
-        }), 200
+# Register routes
+app.register_blueprint(entry_bp)
+app.register_blueprint(auth_bp)
+app.register_blueprint(invite_bp)
+app.register_blueprint(export_bp)
 
-    # Register blueprints
-    app.register_blueprint(entry_bp)
-    app.register_blueprint(auth_bp)
-    app.register_blueprint(invite_bp)
-    app.register_blueprint(export_bp)
-
-    return app
-
-# Production entry point
-app = create_app()
-
-if __name__ == "__main__":
+if __name__ == '__main__':
     app.run(debug=True)
