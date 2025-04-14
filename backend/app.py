@@ -17,13 +17,13 @@ from routes.export import export_bp
 
 # ✅ Create and configure Flask app
 app = Flask(__name__)
+app.url_map.strict_slashes = False  # 🔧 Accept /api/entry and /api/entry/ the same
 CORS(app, origins=["https://myhatchling.ai"])
 
 @app.route("/", methods=["GET", "HEAD"])
 def index():
     return {"status": "ok", "message": "Hatchling API is live"}, 200
 
-# ✅ Register blueprints
 # ✅ Register blueprints with /api/ prefixes
 app.register_blueprint(entry_bp, url_prefix="/api/entry")
 app.register_blueprint(auth_bp, url_prefix="/api/auth")
