@@ -1,37 +1,40 @@
 import React from 'react';
 import { JournalEntry } from '../types';
 
-interface Props {
+type Props = {
   entry: JournalEntry;
-}
+  onClick: () => void;
+};
 
-const EntryCard: React.FC<Props> = ({ entry }) => {
+const EntryCard: React.FC<Props> = ({ entry, onClick }) => {
   return (
-    <div className="border rounded-xl p-4 shadow-sm bg-white">
-      <div className="flex items-center mb-2 text-sm text-gray-600">
-        <span className="font-semibold">{entry.author.name}</span>
-        <span className="mx-2">·</span>
-        <span>{new Date(entry.date_of_memory).toLocaleDateString()}</span>
-        {entry.privacy !== 'private' && (
-          <span className="ml-auto text-xs px-2 py-0.5 bg-gray-100 rounded-full">
-            {entry.privacy}
-          </span>
-        )}
+    <div
+      className="rounded-2xl shadow-md p-4 bg-white hover:bg-gray-50 transition cursor-pointer border"
+      onClick={onClick}
+    >
+      <div className="flex justify-between items-center mb-2">
+        <span className="text-sm text-gray-500">{entry.date_of_memory}</span>
+        <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">
+          {entry.privacy}
+        </span>
       </div>
-
+      <p className="text-gray-800">{entry.content}</p>
       {entry.media_url && (
-        <div className="mb-2">
-          {/* Basic media preview */}
-          <img src={entry.media_url} alt="Memory" className="rounded-md max-h-60 object-cover" />
+        <div className="mt-2">
+          <img
+            src={entry.media_url}
+            alt="Memory"
+            className="max-h-48 w-full object-cover rounded-lg"
+          />
         </div>
       )}
-
-      <p className="text-base">{entry.content || entry.transcription}</p>
-
-      {entry.tags.length > 0 && (
-        <div className="mt-2 flex flex-wrap gap-2 text-xs text-blue-600">
-          {entry.tags.map((tag) => (
-            <span key={tag} className="bg-blue-100 px-2 py-1 rounded-full">
+      {entry.tags?.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-2">
+          {entry.tags.map((tag, idx) => (
+            <span
+              key={idx}
+              className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded"
+            >
               #{tag}
             </span>
           ))}
