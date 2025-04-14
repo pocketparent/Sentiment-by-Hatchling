@@ -13,19 +13,9 @@ function App() {
   };
 
   return (
-    <div className="app-container relative min-h-screen bg-gray-50">
+    <div className="bg-[#fdfaf6] min-h-screen">
       <JournalView onSelectEntry={handleSelectEntry} />
 
-      {/* Floating New Entry Button */}
-      <button
-        className="fixed bottom-6 right-6 z-50 rounded-full bg-black p-4 text-white text-2xl shadow-xl hover:bg-gray-800"
-        onClick={() => handleSelectEntry(null)}
-        aria-label="New Entry"
-      >
-        +
-      </button>
-
-      {/* Modal */}
       {isModalOpen && (
         <EntryModal
           entry={selectedEntry}
