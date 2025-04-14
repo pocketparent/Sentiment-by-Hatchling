@@ -33,22 +33,6 @@ def send_invite():
 
     return jsonify({"status": "invite_sent"}), 200
 
-@auth_bp.route("/auth/verify-token", methods=["POST"])
-def verify_token():
-    phone = request.json.get("phone")
-    token = request.json.get("token")
-
-    expected_token = login_tokens.get(phone)
-    if expected_token and token == expected_token:
-        # Dummy user data — in production, look this up or create it
-        return jsonify({
-            "user_id": phone,
-            "role": "parent",
-            "journal_id": "demo-journal"
-        }), 200
-
-    return jsonify({"error": "Invalid or expired token"}), 401
-
 @auth_bp.route("/auth/request-login", methods=["POST"])
 def request_login():
     phone = request.json.get("phone")
@@ -66,3 +50,29 @@ def request_login():
     )
 
     return jsonify({"status": "sent"}), 200
+
+@auth_bp.route("/auth/verify-token", methods=["POST"])
+def verify_token():
+    phone = request.json.get("phone")
+    token = request.json.get("token")
+
+    if not phone or not token:
+        return jsonify({"error": "Phone and token required"}), 400
+
+    expected_token = login_tokens.get(phone)
+    if expected_token != token:
+        return jsonify({"success": False, "error": "Invalid token"}), 401
+
+    # Simulated user data (replace with real user DB lookup later)
+    user_id = f"user_{phone[-4:]}"
+    role = "parent"  # default until invite flow stores roles persistently
+    journal_id = "demo-journal"
+    is_new_user = True  # stub — change once user DB exists
+
+    return jsonify({
+        "success": True,
+        "user_id": user_id,
+        "role": role,
+        "journal_id": journal_id,
+        "is_new_user": is_new_user
+    }), 200
