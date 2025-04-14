@@ -34,39 +34,46 @@ const EntryModal: React.FC<EntryModalProps> = ({ entry, onClose }) => {
 
   const handleSubmit = async () => {
     setError('');
+    console.log('📝 Submitting entry...');
+    console.log('Content:', content);
+    console.log('Tags:', tags);
+    console.log('Date:', dateOfMemory);
+    console.log('Privacy:', privacy);
+    console.log('Media:', media);
 
     if (!content.trim() && !media) {
       setError('Please write something or upload a file.');
+      console.log('⛔ No content or media provided');
       return;
     }
 
     if (!dateOfMemory.trim()) {
       setError('Please select a date.');
+      console.log('⛔ Missing date');
       return;
     }
 
     if (isFutureDate(dateOfMemory)) {
       setError('The memory date cannot be in the future.');
+      console.log('⛔ Future date selected');
       return;
     }
 
     const formData = new FormData();
     formData.append('content', content);
-    formData.append('tags', tags); // plain string — backend splits
+    formData.append('tags', tags);
     formData.append('date_of_memory', dateOfMemory);
     formData.append('privacy', privacy);
-    formData.append('author_id', 'demo'); // 🔁 Replace with real user ID
+    formData.append('author_id', 'demo'); // Replace with real ID later
     formData.append('source_type', 'app');
-
-    if (media) {
-      formData.append('media', media);
-    }
+    if (media) formData.append('media', media);
 
     try {
-      await createEntry(formData);
+      const result = await createEntry(formData);
+      console.log('✅ Entry saved:', result);
       onClose();
-    } catch (err) {
-      console.error('Entry save failed:', err);
+    } catch (err: any) {
+      console.error('🔥 Entry save failed:', err);
       setError('Something went wrong. Please try again.');
     }
   };
