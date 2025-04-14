@@ -46,7 +46,7 @@ const JournalView: React.FC<Props> = ({ onSelectEntry }) => {
   }, [search, entries]);
 
   return (
-    <div className="relative px-4 py-6 max-w-2xl mx-auto pb-32">
+    <div className="relative px-4 py-6 max-w-2xl mx-auto pb-24">
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-2xl font-semibold text-center flex-1">Your Saved Memories</h2>
         <button className="text-neutral-700 hover:text-black transition" aria-label="Settings">
@@ -59,35 +59,4 @@ const JournalView: React.FC<Props> = ({ onSelectEntry }) => {
         className="mb-6 w-full rounded-xl border border-neutral-300 px-4 py-2 text-sm placeholder-neutral-400"
         placeholder="Search memories..."
         value={search}
-        onChange={(e) => setSearch(e.target.value)}
-      />
-
-      {loading ? (
-        <p className="text-center text-neutral-500">Loading your journal...</p>
-      ) : filteredEntries.length === 0 ? (
-        <EmptyState />
-      ) : (
-        <div className="space-y-4">
-          {filteredEntries.map((entry) => (
-            <EntryCard
-              key={entry.entry_id}
-              entry={entry}
-              onClick={() => onSelectEntry(entry)}
-            />
-          ))}
-        </div>
-      )}
-
-      {/* Floating Button */}
-      <button
-        className="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-black text-white text-xl flex items-center justify-center shadow-lg hover:bg-neutral-800 transition"
-        onClick={() => onSelectEntry(null)}
-        aria-label="New Entry"
-      >
-        +
-      </button>
-    </div>
-  );
-};
-
-export default JournalView;
+        onChange={(e) => setSearch(e
