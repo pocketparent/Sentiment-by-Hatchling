@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { JournalEntry } from '../types';
 import { fetchEntries } from '../api/entries';
 import EntryCard from './EntryCard';
@@ -14,6 +15,7 @@ const JournalView: React.FC<Props> = ({ onSelectEntry }) => {
   const [filteredEntries, setFilteredEntries] = useState<JournalEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const navigate = useNavigate();
 
   useEffect(() => {
     const loadEntries = async () => {
@@ -49,7 +51,11 @@ const JournalView: React.FC<Props> = ({ onSelectEntry }) => {
     <div className="relative px-4 py-6 max-w-2xl mx-auto pb-24">
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-2xl font-semibold text-center flex-1">Your Saved Memories</h2>
-        <button className="text-neutral-700 hover:text-black transition" aria-label="Settings">
+        <button
+          className="text-neutral-700 hover:text-black transition"
+          aria-label="Settings"
+          onClick={() => navigate('/settings')}
+        >
           <Settings size={20} />
         </button>
       </div>
