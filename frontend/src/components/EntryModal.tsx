@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { JournalEntry } from '../types';
 import { createEntry, updateEntry, deleteEntry } from '../api/entries';
 
@@ -8,144 +8,119 @@ interface EntryModalProps {
 }
 
 const EntryModal: React.FC<EntryModalProps> = ({ entry, onClose }) => {
-  const [content, setContent] = useState('');
-  const [tags, setTags] = useState<string>('');
-  const [privacy, setPrivacy] = useState('private');
-  const [dateOfMemory, setDateOfMemory] = useState('');
-  const [file, setFile] = useState<File | null>(null);
+  const isEditing = Boolean(entry);
+  const [content, setContent] = useState(entry?.content || '');
+  const [tags, setTags] = useState(entry?.tags?.join(', ') || '');
+  const [dateOfMemory, setDateOfMemory] = useState(entry?.date_of_memory || '');
+  const [privacy, setPrivacy] = useState(entry?.privacy || 'private');
+  const [media, setMedia] = useState<File | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => {
-    if (entry) {
-      setContent(entry.content || '');
-      setTags(entry.tags?.join(', ') || '');
-      setPrivacy(entry.privacy || 'private');
-      setDateOfMemory(entry.date_of_memory || '');
-    } else {
-      setContent('');
-      setTags('');
-      setPrivacy('private');
-      setDateOfMemory('');
-    }
-    setFile(null);
-  }, [entry]);
-
-  const handleSave = async () => {
-    const payload = {
-      content,
-      tags: tags.split(',').map(tag => tag.trim()),
-      privacy,
-      date_of_memory: dateOfMemory,
-    };
+  const handleSubmit = async () => {
+    setSubmitting(true);
 
     const formData = new FormData();
-    formData.append('content', payload.content);
-    formData.append('author_id', 'user-123'); // TODO: dynamic
-    formData.append('privacy', payload.privacy);
-    formData.append('date_of_memory', payload.date_of_memory);
-    payload.tags.forEach(tag => formData.append('tags', tag));
-    if (file) formData.append('media', file);
+    formData.append('content', content);
+    formData.append('date_of_memory', dateOfMemory);
+    formData.append('tags', tags);
+    formData.append('privacy', privacy);
+    formData.append('author_id', 'parent-123'); // temporary hardcoded
 
-    try {
-      entry
-        ? await updateEntry(entry.entry_id, formData)
-        : await createEntry(formData);
-      onClose();
-    } catch (error) {
-      console.error('Error saving entry:', error);
+    if (media) formData.append('media', media);
+    if (isEditing && entry) {
+      await updateEntry(entry.entry_id, formData);
+    } else {
+      await createEntry(formData);
     }
+
+    onClose();
   };
 
   const handleDelete = async () => {
     if (entry) {
-      try {
-        await deleteEntry(entry.entry_id);
-        onClose();
-      } catch (error) {
-        console.error('Error deleting entry:', error);
-      }
+      await deleteEntry(entry.entry_id);
+      onClose();
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-      <div className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-xl">
-        <h3 className="text-xl font-semibold mb-4">
-          {entry ? 'Edit Memory' : 'New Memory'}
-        </h3>
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50">
+      <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md mx-4 relative">
+        <button
+          onClick={onClose}
+          className="absolute top-3 right-4 text-neutral-500 hover:text-black"
+          aria-label="Close"
+        >
+          ✕
+        </button>
 
-        <textarea
-          className="w-full mb-4 rounded-md border border-neutral-300 p-3 text-sm"
-          rows={4}
-          placeholder="What do you want to remember?"
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-        />
+        <h2 className="text-xl font-semibold mb-4">
+          {isEditing ? 'Edit Memory' : 'New Memory'}
+        </h2>
 
-        <div className="mb-4">
-          <label className="block mb-1 text-sm text-neutral-600">Tags</label>
+        <div className="space-y-4">
+          <textarea
+            className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm"
+            placeholder="What do you want to remember?"
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            rows={4}
+          />
+
           <input
             type="text"
-            className="w-full rounded-md border border-neutral-300 p-2 text-sm"
-            placeholder="e.g. first words, trip, funny"
+            className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm"
+            placeholder="Tags (comma separated)"
             value={tags}
             onChange={(e) => setTags(e.target.value)}
           />
-        </div>
 
-        <div className="mb-4">
-          <label className="block mb-1 text-sm text-neutral-600">Date of memory</label>
           <input
             type="date"
-            className="w-full rounded-md border border-neutral-300 p-2 text-sm"
+            className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm"
             value={dateOfMemory}
             onChange={(e) => setDateOfMemory(e.target.value)}
           />
-        </div>
 
-        <div className="mb-4">
-          <label className="block mb-1 text-sm text-neutral-600">Privacy</label>
           <select
-            className="w-full rounded-md border border-neutral-300 p-2 text-sm"
+            className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm"
             value={privacy}
             onChange={(e) => setPrivacy(e.target.value)}
           >
             <option value="private">Private</option>
             <option value="shared">Shared</option>
           </select>
-        </div>
 
-        <div className="mb-4">
-          <label className="block w-full cursor-pointer rounded-md border border-neutral-300 bg-white px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-50 text-center">
-            {file ? file.name : 'Choose file'}
+          <label className="block">
+            <span className="text-sm text-neutral-700">Attach media</span>
             <input
               type="file"
               accept="image/*,video/*"
-              onChange={(e) => setFile(e.target.files?.[0] || null)}
-              className="hidden"
+              onChange={(e) => setMedia(e.target.files?.[0] || null)}
+              className="mt-1 block w-full text-sm file:mr-4 file:py-2 file:px-4
+                         file:rounded-full file:border-0
+                         file:text-sm file:font-semibold
+                         file:bg-amber-100 file:text-amber-900
+                         hover:file:bg-amber-200"
             />
           </label>
         </div>
 
-        <div className="flex justify-end gap-2 mt-6">
-          {entry && (
+        <div className="flex justify-between mt-6">
+          {isEditing && (
             <button
               onClick={handleDelete}
-              className="rounded-md border border-red-300 px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+              className="text-sm text-red-500 hover:underline"
             >
               Delete
             </button>
           )}
           <button
-            onClick={onClose}
-            className="rounded-md border border-neutral-300 px-4 py-2 text-sm hover:bg-neutral-100"
+            onClick={handleSubmit}
+            disabled={submitting}
+            className="ml-auto bg-black text-white text-sm px-4 py-2 rounded-xl hover:bg-neutral-800"
           >
-            Cancel
-          </button>
-          <button
-            onClick={handleSave}
-            className="rounded-md bg-black px-4 py-2 text-sm text-white hover:bg-neutral-800"
-          >
-            Save
+            {isEditing ? 'Update' : 'Save'}
           </button>
         </div>
       </div>
