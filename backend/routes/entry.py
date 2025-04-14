@@ -1,14 +1,14 @@
 from flask import Blueprint, request, jsonify
 from firebase_admin import firestore
 from utils.media import upload_media_to_firebase
-from utils.openai_client import transcribe_audio  # optional, safe if unused
+from utils.openai_client import transcribe_audio
 import openai
 import logging
 
 entry_bp = Blueprint("entry", __name__)
 db = firestore.client()
 
-@entry_bp.route("/entry", methods=["POST"])
+@entry_bp.route("", methods=["POST"])
 def create_entry():
     content = request.form.get("content", "")
     author_id = request.form.get("author_id")
@@ -40,14 +40,12 @@ def create_entry():
         try:
             media_url = upload_media_to_firebase(file.stream, file.filename, file.content_type)
 
-            # Optional: Transcribe audio if it's a supported type
             if file.filename.lower().endswith((".m4a", ".mp3", ".ogg")):
                 transcription = transcribe_audio(file.stream)
 
         except Exception as e:
             logging.exception("Media upload/transcription failed")
 
-    # ✅ Entry Object
     entry = {
         "content": content,
         "author_id": author_id,
@@ -66,7 +64,7 @@ def create_entry():
 
     return jsonify({"entry_id": doc_ref[1].id, "status": "created"}), 200
 
-@entry_bp.route("/entries", methods=["GET"])
+@entry_bp.route("", methods=["GET"])
 def get_entries():
     entries = []
     docs = db.collection("entries").order_by("date_of_memory", direction=firestore.Query.DESCENDING).stream()
@@ -76,7 +74,6 @@ def get_entries():
         entries.append(entry)
     return jsonify({"entries": entries}), 200
 
-# ✅ AI Tagging Helper
 def generate_tags_from_content(content):
     prompt = f"Generate 3 short, relevant tags (single words or short phrases) for the following memory:\n\n\"{content}\"\n\nTags:"
     response = openai.ChatCompletion.create(
