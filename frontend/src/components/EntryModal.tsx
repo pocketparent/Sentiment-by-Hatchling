@@ -1,0 +1,1 @@
+export default function EntryModal() { return <div>Entry Modal</div>; }
