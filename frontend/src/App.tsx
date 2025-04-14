@@ -1,15 +1,29 @@
-import React from 'react';
+import React, { useState } from 'react';
+import JournalView from './components/JournalView';
+import EntryModal from './components/EntryModal';
+import Header from './components/Header'; // Optional, if you built one
+import './App.css'; // Optional global styles
 
-export default function App() {
+function App() {
+  const [selectedEntry, setSelectedEntry] = useState(null);
+
   return (
-    <div style={{
-      fontFamily: 'sans-serif',
-      padding: '2rem',
-      textAlign: 'center',
-      color: '#333'
-    }}>
-      <h1>🐣 Hatchling App</h1>
-      <p>Welcome! Your MVP base is up and running.</p>
+    <div className="app-container">
+      {/* Optional Header */}
+      <Header />
+
+      {/* Journal Feed */}
+      <JournalView onSelectEntry={setSelectedEntry} />
+
+      {/* Modal for Editing */}
+      {selectedEntry && (
+        <EntryModal
+          entry={selectedEntry}
+          onClose={() => setSelectedEntry(null)}
+        />
+      )}
     </div>
   );
 }
+
+export default App;
