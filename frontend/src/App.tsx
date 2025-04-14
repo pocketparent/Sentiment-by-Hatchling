@@ -1,28 +1,27 @@
 import React, { useState, useEffect } from 'react';
 import JournalView from './components/JournalView';
 import EntryModal from './components/EntryModal';
-import { fetchEntries } from './api/entries';
 import { JournalEntry } from './types';
+import { fetchEntries } from './api/entries';
 
 function App() {
   const [selectedEntry, setSelectedEntry] = useState<JournalEntry | null>(null);
   const [entries, setEntries] = useState<JournalEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const reloadEntries = async () => {
-    setLoading(true);
+  const loadEntries = async () => {
     try {
       const data = await fetchEntries();
       setEntries(data);
-    } catch (err) {
-      console.error('Failed to reload entries:', err);
+    } catch (error) {
+      console.error('Failed to fetch journal entries:', error);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    reloadEntries();
+    loadEntries();
   }, []);
 
   return (
@@ -32,10 +31,11 @@ function App() {
         loading={loading}
         onSelectEntry={setSelectedEntry}
       />
-      {selectedEntry !== null && (
+      {selectedEntry && (
         <EntryModal
+          entry={selectedEntry}
           onClose={() => setSelectedEntry(null)}
-          onSuccess={reloadEntries}
+          onSuccess={loadEntries}
         />
       )}
     </div>
