@@ -1,6 +1,6 @@
 import { JournalEntry } from '../types';
 
-const API_BASE = '/api/entry'; // You may need to prefix with /api if using a proxy
+const API_BASE = '/api/entry';
 
 export async function fetchEntries(): Promise<JournalEntry[]> {
   const response = await fetch(API_BASE);
