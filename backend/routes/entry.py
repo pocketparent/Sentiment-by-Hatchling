@@ -1,8 +1,8 @@
 from flask import Blueprint, request, jsonify
 from firebase_admin import firestore
 from utils.media import upload_media_to_firebase
+from utils.openai_client import transcribe_audio  # optional, safe if unused
 import openai
-import os
 import logging
 
 entry_bp = Blueprint("entry", __name__)
@@ -10,14 +10,18 @@ db = firestore.client()
 
 @entry_bp.route("/entry", methods=["POST"])
 def create_entry():
-    content = request.form.get("content")
+    content = request.form.get("content", "")
     author_id = request.form.get("author_id")
     date_of_memory = request.form.get("date_of_memory")
     privacy = request.form.get("privacy", "private")
     manual_tags = request.form.get("tags", "")
     tag_list = [tag.strip() for tag in manual_tags.split(",") if tag.strip()]
+    source_type = request.form.get("source_type", "app")
 
-    # AI Tagging
+    if not author_id or not date_of_memory:
+        return jsonify({"error": "Missing required fields"}), 400
+
+    # ✅ AI Tagging
     ai_tags = []
     if content:
         try:
@@ -25,16 +29,25 @@ def create_entry():
         except Exception as e:
             logging.exception("AI tag generation failed")
 
-    # Merge tags
     combined_tags = list(set(tag_list + ai_tags))
 
-    # Media upload
+    # ✅ Media Handling
     file = request.files.get("media")
     media_url = None
-    if file:
-        media_url = upload_media_to_firebase(file.stream, file.filename, file.content_type)
+    transcription = None
 
-    # Entry object
+    if file:
+        try:
+            media_url = upload_media_to_firebase(file.stream, file.filename, file.content_type)
+
+            # Optional: Transcribe audio if it's a supported type
+            if file.filename.lower().endswith((".m4a", ".mp3", ".ogg")):
+                transcription = transcribe_audio(file.stream)
+
+        except Exception as e:
+            logging.exception("Media upload/transcription failed")
+
+    # ✅ Entry Object
     entry = {
         "content": content,
         "author_id": author_id,
@@ -42,16 +55,16 @@ def create_entry():
         "tags": combined_tags,
         "privacy": privacy,
         "media_url": media_url,
-        "source_type": "app"
+        "transcription": transcription,
+        "source_type": source_type,
+        "created_at": firestore.SERVER_TIMESTAMP
     }
 
     doc_ref = db.collection("entries").add(entry)
 
-    # ✅ Analytics logging (placeholder)
     logging.info(f"Entry created: {doc_ref[1].id} by {author_id}")
 
     return jsonify({"entry_id": doc_ref[1].id, "status": "created"}), 200
-
 
 @entry_bp.route("/entries", methods=["GET"])
 def get_entries():
@@ -62,7 +75,6 @@ def get_entries():
         entry["entry_id"] = doc.id
         entries.append(entry)
     return jsonify({"entries": entries}), 200
-
 
 # ✅ AI Tagging Helper
 def generate_tags_from_content(content):
