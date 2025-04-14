@@ -9,6 +9,7 @@ entry_bp = Blueprint("entry", __name__)
 db = firestore.client()
 
 @entry_bp.route("", methods=["POST"])
+@entry_bp.route("/", methods=["POST"])
 def create_entry():
     content = request.form.get("content", "")
     author_id = request.form.get("author_id")
@@ -21,7 +22,6 @@ def create_entry():
     if not author_id or not date_of_memory:
         return jsonify({"error": "Missing required fields"}), 400
 
-    # ✅ AI Tagging
     ai_tags = []
     if content:
         try:
@@ -31,7 +31,6 @@ def create_entry():
 
     combined_tags = list(set(tag_list + ai_tags))
 
-    # ✅ Media Handling
     file = request.files.get("media")
     media_url = None
     transcription = None
@@ -39,10 +38,8 @@ def create_entry():
     if file:
         try:
             media_url = upload_media_to_firebase(file.stream, file.filename, file.content_type)
-
             if file.filename.lower().endswith((".m4a", ".mp3", ".ogg")):
                 transcription = transcribe_audio(file.stream)
-
         except Exception as e:
             logging.exception("Media upload/transcription failed")
 
@@ -65,7 +62,9 @@ def create_entry():
     return jsonify({"entry_id": doc_ref[1].id, "status": "created"}), 200
 
 @entry_bp.route("", methods=["GET"])
+@entry_bp.route("/", methods=["GET"])
 def get_entries():
+    print("📥 GET /api/entry hit!")  # Optional debug print
     entries = []
     docs = db.collection("entries").order_by("date_of_memory", direction=firestore.Query.DESCENDING).stream()
     for doc in docs:
