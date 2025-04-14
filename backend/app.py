@@ -1,19 +1,15 @@
 from flask import Flask
 from flask_cors import CORS
-from routes.entry import entry_bp
-from routes.auth import auth_bp
-from routes.invite import invite_bp
-from routes.export import export_bp
-
-import os
 from dotenv import load_dotenv
 import firebase_admin
 from firebase_admin import credentials
 
+import os
+
 # Load environment variables
 load_dotenv()
 
-# ✅ Firebase initialization
+# ✅ Initialize Firebase
 cred = credentials.Certificate({
     "type": "service_account",
     "project_id": os.getenv("FIREBASE_PROJECT_ID"),
@@ -30,7 +26,13 @@ firebase_admin.initialize_app(cred, {
     "storageBucket": os.getenv("FIREBASE_STORAGE_BUCKET")
 })
 
-# Create the app
+# ✅ Now import your routes
+from routes.entry import entry_bp
+from routes.auth import auth_bp
+from routes.invite import invite_bp
+from routes.export import export_bp
+
+# Create app
 app = Flask(__name__)
 CORS(app, origins=["https://myhatchling.ai"])
 
@@ -38,11 +40,10 @@ CORS(app, origins=["https://myhatchling.ai"])
 def index():
     return {"status": "ok", "message": "Hatchling API is live"}, 200
 
-# Register routes
 app.register_blueprint(entry_bp)
 app.register_blueprint(auth_bp)
 app.register_blueprint(invite_bp)
 app.register_blueprint(export_bp)
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     app.run(debug=True)
