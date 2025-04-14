@@ -33,6 +33,8 @@ const EntryModal: React.FC<EntryModalProps> = ({ entry, onClose }) => {
   };
 
   const handleSubmit = async () => {
+    setError('');
+
     if (!content.trim() || !dateOfMemory.trim()) {
       setError('Please fill in all required fields.');
       return;
@@ -45,17 +47,20 @@ const EntryModal: React.FC<EntryModalProps> = ({ entry, onClose }) => {
 
     const formData = new FormData();
     formData.append('content', content);
-    formData.append('tags', tags);
+    formData.append('tags', JSON.stringify(tags.split(',').map(t => t.trim()).filter(Boolean)));
     formData.append('date_of_memory', dateOfMemory);
     formData.append('privacy', privacy);
-    formData.append('author_id', 'demo'); // Replace with real user
+    formData.append('author_id', 'demo'); // Replace with real user ID later
 
-    if (media) formData.append('media', media);
+    if (media) {
+      formData.append('media', media);
+    }
 
     try {
       await createEntry(formData);
       onClose();
     } catch (err) {
+      console.error(err);
       setError('Something went wrong. Please try again.');
     }
   };
@@ -99,8 +104,9 @@ const EntryModal: React.FC<EntryModalProps> = ({ entry, onClose }) => {
             type="date"
             value={dateOfMemory}
             onChange={(e) => setDateOfMemory(e.target.value)}
-            max={new Date().toISOString().split('T')[0]} // disallow future dates
+            max={new Date().toISOString().split('T')[0]}
             className="w-full border border-neutral-300 rounded-lg px-4 py-2 text-sm bg-white"
+            required
           />
 
           <select
@@ -112,15 +118,17 @@ const EntryModal: React.FC<EntryModalProps> = ({ entry, onClose }) => {
             <option value="shared">Shared</option>
           </select>
 
-          <label className="block text-sm text-neutral-700">
-            Upload photo or video:
+          <div>
+            <label className="block text-sm font-medium text-neutral-700 mb-1">
+              Upload photo or video (optional)
+            </label>
             <input
               type="file"
               accept="image/*,video/*"
               onChange={(e) => setMedia(e.target.files?.[0] || null)}
-              className="mt-2 block w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-neutral-100 file:text-neutral-700 hover:file:bg-neutral-200"
+              className="block w-full text-sm text-neutral-700 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-neutral-100 file:text-neutral-700 hover:file:bg-neutral-200"
             />
-          </label>
+          </div>
         </div>
 
         <button
