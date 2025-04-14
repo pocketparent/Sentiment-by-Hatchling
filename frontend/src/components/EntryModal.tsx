@@ -8,114 +8,118 @@ interface EntryModalProps {
 }
 
 const EntryModal: React.FC<EntryModalProps> = ({ entry, onClose }) => {
-  const isNew = !entry?.entry_id;
-
   const [content, setContent] = useState(entry?.content || '');
   const [tags, setTags] = useState(entry?.tags?.join(', ') || '');
-  const [date, setDate] = useState(entry?.date_of_memory || new Date().toISOString().slice(0, 10));
   const [privacy, setPrivacy] = useState(entry?.privacy || 'private');
-  const [saving, setSaving] = useState(false);
+  const [dateOfMemory, setDateOfMemory] = useState(entry?.date_of_memory || new Date().toISOString().split('T')[0]);
+  const [mediaFile, setMediaFile] = useState<File | null>(null);
 
-  const handleSave = async () => {
-    setSaving(true);
-    const tagList = tags.split(',').map(t => t.trim()).filter(Boolean);
-    const payload = {
-      content,
-      tags: tagList,
-      date_of_memory: date,
-      author_id: 'demo-parent', // Replace with real user later
-      privacy,
-    };
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    const formData = new FormData();
+    formData.append('content', content);
+    formData.append('tags', tags);
+    formData.append('privacy', privacy);
+    formData.append('date_of_memory', dateOfMemory);
+    formData.append('author_id', 'placeholder-user'); // Replace later
+    if (mediaFile) {
+      formData.append('media', mediaFile);
+    }
 
     try {
-      if (isNew) {
-        await createEntry(payload);
+      if (entry?.entry_id) {
+        await updateEntry(entry.entry_id, formData);
       } else {
-        await updateEntry(entry!.entry_id, payload);
+        await createEntry(formData);
       }
       onClose();
     } catch (err) {
-      console.error('Failed to save entry:', err);
-    } finally {
-      setSaving(false);
+      console.error('Error saving entry:', err);
     }
   };
 
   const handleDelete = async () => {
-    if (entry?.entry_id && confirm('Are you sure you want to delete this memory?')) {
+    if (entry?.entry_id && confirm('Delete this entry?')) {
       try {
         await deleteEntry(entry.entry_id);
         onClose();
       } catch (err) {
-        console.error('Failed to delete entry:', err);
+        console.error('Error deleting entry:', err);
       }
     }
   };
 
-  if (!entry && !isNew) return null;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-8">
-      <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl">
-        <h2 className="mb-4 text-lg font-semibold">{isNew ? 'New Memory' : 'Edit Memory'}</h2>
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 relative">
+        <h2 className="text-xl font-semibold mb-4">{entry ? 'Edit Memory' : 'New Memory'}</h2>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <input
+            type="date"
+            value={dateOfMemory}
+            onChange={(e) => setDateOfMemory(e.target.value)}
+            className="w-full rounded border p-2"
+          />
 
-        <input
-          type="date"
-          className="mb-3 w-full rounded border px-3 py-2 text-sm"
-          value={date}
-          onChange={(e) => setDate(e.target.value)}
-        />
+          <textarea
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            placeholder="What do you want to remember?"
+            className="w-full rounded border p-2 h-28 resize-none"
+          />
 
-        <textarea
-          className="mb-3 h-32 w-full resize-none rounded border px-3 py-2 text-sm"
-          placeholder="What do you want to remember?"
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-        />
+          <input
+            type="text"
+            value={tags}
+            onChange={(e) => setTags(e.target.value)}
+            placeholder="Tags (comma-separated)"
+            className="w-full rounded border p-2"
+          />
 
-        <input
-          type="text"
-          className="mb-3 w-full rounded border px-3 py-2 text-sm"
-          placeholder="Tags (comma-separated)"
-          value={tags}
-          onChange={(e) => setTags(e.target.value)}
-        />
+          <select
+            value={privacy}
+            onChange={(e) => setPrivacy(e.target.value)}
+            className="w-full rounded border p-2"
+          >
+            <option value="private">Private</option>
+            <option value="shared">Shared</option>
+          </select>
 
-        <select
-          className="mb-4 w-full rounded border px-3 py-2 text-sm"
-          value={privacy}
-          onChange={(e) => setPrivacy(e.target.value)}
-        >
-          <option value="private">Private</option>
-          <option value="shared">Shared</option>
-        </select>
+          <input
+            type="file"
+            accept="image/*"
+            onChange={(e) => setMediaFile(e.target.files?.[0] || null)}
+            className="w-full rounded border p-2"
+          />
 
-        <div className="flex justify-between gap-4">
-          {!isNew && (
+          <div className="flex justify-between pt-2">
             <button
-              className="rounded-xl border border-red-500 px-4 py-2 text-sm text-red-500 hover:bg-red-50"
-              onClick={handleDelete}
-            >
-              Delete
-            </button>
-          )}
-
-          <div className="ml-auto flex gap-2">
-            <button
-              className="rounded-xl border px-4 py-2 text-sm text-gray-600 hover:bg-gray-100"
+              type="button"
               onClick={onClose}
+              className="rounded px-4 py-2 border border-gray-300 hover:bg-gray-100"
             >
               Cancel
             </button>
-            <button
-              className="rounded-xl bg-black px-4 py-2 text-sm text-white hover:bg-gray-800"
-              onClick={handleSave}
-              disabled={saving}
-            >
-              {saving ? 'Saving...' : 'Save'}
-            </button>
+            <div className="flex gap-2">
+              {entry?.entry_id && (
+                <button
+                  type="button"
+                  onClick={handleDelete}
+                  className="rounded px-4 py-2 border border-red-300 text-red-600 hover:bg-red-50"
+                >
+                  Delete
+                </button>
+              )}
+              <button
+                type="submit"
+                className="rounded px-4 py-2 bg-black text-white hover:bg-gray-800"
+              >
+                Save
+              </button>
+            </div>
           </div>
-        </div>
+        </form>
       </div>
     </div>
   );
