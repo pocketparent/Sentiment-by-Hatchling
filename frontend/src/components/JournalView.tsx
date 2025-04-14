@@ -3,14 +3,15 @@ import { JournalEntry } from '../types';
 import { fetchEntries } from '../api/entries';
 import EntryCard from './EntryCard';
 import EmptyState from './EmptyState';
-import EntryModal from './EntryModal';
 
-const JournalView: React.FC = () => {
+interface JournalViewProps {
+  onSelectEntry: (entry: JournalEntry | null) => void;
+}
+
+const JournalView: React.FC<JournalViewProps> = ({ onSelectEntry }) => {
   const [entries, setEntries] = useState<JournalEntry[]>([]);
   const [filteredEntries, setFilteredEntries] = useState<JournalEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedEntry, setSelectedEntry] = useState<JournalEntry | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
   const [search, setSearch] = useState('');
 
   useEffect(() => {
@@ -65,35 +66,10 @@ const JournalView: React.FC = () => {
             <EntryCard
               key={entry.entry_id}
               entry={entry}
-              onClick={() => {
-                setSelectedEntry(entry);
-                setIsModalOpen(true);
-              }}
+              onClick={() => onSelectEntry(entry)}
             />
           ))}
         </div>
-      )}
-
-      {/* Floating Button */}
-      <button
-        className="fixed bottom-6 right-6 flex items-center gap-2 rounded-full bg-black px-5 py-3 text-white shadow-lg hover:bg-gray-800"
-        onClick={() => {
-          setSelectedEntry(null);  // For new entry
-          setIsModalOpen(true);
-        }}
-      >
-        + New Entry
-      </button>
-
-      {/* Modal */}
-      {isModalOpen && (
-        <EntryModal
-          entry={selectedEntry}
-          onClose={() => {
-            setIsModalOpen(false);
-            setSelectedEntry(null);
-          }}
-        />
       )}
     </div>
   );
