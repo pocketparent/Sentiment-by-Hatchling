@@ -22,7 +22,12 @@ export async function createEntry(entry: Partial<JournalEntry>) {
     body: formData,
   });
 
-  if (!response.ok) throw new Error('Failed to create entry');
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('❌ Server error response:', errorText);
+    throw new Error('Failed to create entry');
+  }
+
   return await response.json();
 }
 
