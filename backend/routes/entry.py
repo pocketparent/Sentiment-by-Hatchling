@@ -24,7 +24,18 @@ def create_entry():
         "date_of_memory": date_of_memory,
         "tags": tags,
         "privacy": privacy,
-        "media_url": media_url
+        "media_url": media_url,
+        "source_type": "app"
     }
     doc_ref = db.collection("entries").add(entry)
     return jsonify({"entry_id": doc_ref[1].id, "status": "created"}), 200
+
+@entry_bp.route("/entries", methods=["GET"])
+def get_entries():
+    entries = []
+    docs = db.collection("entries").order_by("date_of_memory", direction=firestore.Query.DESCENDING).stream()
+    for doc in docs:
+        entry = doc.to_dict()
+        entry["entry_id"] = doc.id
+        entries.append(entry)
+    return jsonify(entries), 200
