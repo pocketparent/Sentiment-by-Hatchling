@@ -1,37 +1,31 @@
 import React, { useState } from 'react';
 import JournalView from './components/JournalView';
 import EntryModal from './components/EntryModal';
+import { JournalEntry } from './types';
 
 function App() {
-  const [selectedEntry, setSelectedEntry] = useState(null);
-  const [creatingNew, setCreatingNew] = useState(false);
-
-  const handleNewEntry = () => {
-    setCreatingNew(true);
-    setSelectedEntry(null);
-  };
-
-  const closeModal = () => {
-    setCreatingNew(false);
-    setSelectedEntry(null);
-  };
+  const [selectedEntry, setSelectedEntry] = useState<JournalEntry | null>(null);
 
   return (
-    <div className="relative min-h-screen bg-gray-50">
+    <div className="app-container relative min-h-screen bg-gray-50">
       <JournalView onSelectEntry={setSelectedEntry} />
-      {(selectedEntry || creatingNew) && (
-        <EntryModal
-          entry={selectedEntry}
-          onClose={closeModal}
-        />
-      )}
+
+      {/* Floating “+” Button */}
       <button
-        className="fixed bottom-6 right-6 bg-black text-white rounded-full w-14 h-14 text-3xl shadow-lg hover:bg-gray-800"
-        onClick={handleNewEntry}
-        aria-label="Add new entry"
+        className="fixed bottom-6 right-6 h-14 w-14 rounded-full bg-black text-white text-2xl shadow-lg hover:bg-gray-800"
+        onClick={() => setSelectedEntry(null)} // null = new entry
+        aria-label="New Entry"
       >
         +
       </button>
+
+      {/* Modal */}
+      {selectedEntry !== undefined && (
+        <EntryModal
+          entry={selectedEntry}
+          onClose={() => setSelectedEntry(undefined)}
+        />
+      )}
     </div>
   );
 }
