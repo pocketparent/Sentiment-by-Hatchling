@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import JournalView from './components/JournalView';
 import EntryModal from './components/EntryModal';
-import Header from './components/Header'; // Optional, if you built one
-import './App.css'; // Optional global styles
+// import Header from './components/Header'; // ❌ Just remove or comment this out
+import './App.css';
 
 function App() {
   const [selectedEntry, setSelectedEntry] = useState(null);
@@ -10,7 +10,7 @@ function App() {
   return (
     <div className="app-container">
       {/* Optional Header */}
-      <Header />
+      {/* <Header /> */}
 
       {/* Journal Feed */}
       <JournalView onSelectEntry={setSelectedEntry} />
