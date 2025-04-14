@@ -3,6 +3,7 @@ from flask_cors import CORS
 from dotenv import load_dotenv
 import firebase_admin
 from firebase_admin import credentials
+from utils import firebase  # Initializes Firebase with env vars
 
 import os
 
