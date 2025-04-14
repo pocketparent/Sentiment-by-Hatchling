@@ -24,14 +24,22 @@ const EntryModal: React.FC<EntryModalProps> = ({ entry, onClose }) => {
   }, [onClose]);
 
   const handleOverlayClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (e.target === e.currentTarget) {
-      onClose();
-    }
+    if (e.target === e.currentTarget) onClose();
+  };
+
+  const isFutureDate = (dateStr: string) => {
+    const today = new Date().toISOString().split('T')[0];
+    return dateStr > today;
   };
 
   const handleSubmit = async () => {
-    if (!content || !dateOfMemory) {
-      setError('Please fill in all required fields (memory and date).');
+    if (!content.trim() || !dateOfMemory.trim()) {
+      setError('Please fill in all required fields.');
+      return;
+    }
+
+    if (isFutureDate(dateOfMemory)) {
+      setError('The memory date cannot be in the future.');
       return;
     }
 
@@ -64,13 +72,15 @@ const EntryModal: React.FC<EntryModalProps> = ({ entry, onClose }) => {
         >
           ×
         </button>
-        <h2 className="text-xl font-semibold mb-4">{entry ? 'Edit Memory' : 'New Memory'}</h2>
+        <h2 className="text-xl font-semibold mb-4">
+          {entry ? 'Edit Memory' : 'New Memory'}
+        </h2>
 
         {error && <p className="text-red-500 text-sm mb-2">{error}</p>}
 
         <div className="space-y-4">
           <textarea
-            placeholder="Write your memory here..."
+            placeholder="Write your memory here... *"
             value={content}
             onChange={(e) => setContent(e.target.value)}
             className="w-full border border-neutral-300 rounded-lg px-4 py-2 text-sm bg-white placeholder-neutral-400"
@@ -79,7 +89,7 @@ const EntryModal: React.FC<EntryModalProps> = ({ entry, onClose }) => {
 
           <input
             type="text"
-            placeholder="e.g. milestones, vacation"
+            placeholder="e.g. milestones, vacation (optional)"
             value={tags}
             onChange={(e) => setTags(e.target.value)}
             className="w-full border border-neutral-300 rounded-lg px-4 py-2 text-sm bg-white placeholder-neutral-400"
@@ -89,6 +99,7 @@ const EntryModal: React.FC<EntryModalProps> = ({ entry, onClose }) => {
             type="date"
             value={dateOfMemory}
             onChange={(e) => setDateOfMemory(e.target.value)}
+            max={new Date().toISOString().split('T')[0]} // disallow future dates
             className="w-full border border-neutral-300 rounded-lg px-4 py-2 text-sm bg-white"
           />
 
@@ -101,13 +112,13 @@ const EntryModal: React.FC<EntryModalProps> = ({ entry, onClose }) => {
             <option value="shared">Shared</option>
           </select>
 
-          <label className="block">
-            <span className="sr-only">Choose media</span>
+          <label className="block text-sm text-neutral-700">
+            Upload photo or video:
             <input
               type="file"
               accept="image/*,video/*"
               onChange={(e) => setMedia(e.target.files?.[0] || null)}
-              className="block w-full text-sm text-neutral-700 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-neutral-100 file:text-neutral-700 hover:file:bg-neutral-200"
+              className="mt-2 block w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-neutral-100 file:text-neutral-700 hover:file:bg-neutral-200"
             />
           </label>
         </div>
