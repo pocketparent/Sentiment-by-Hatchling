@@ -59,4 +59,26 @@ const JournalView: React.FC<Props> = ({ onSelectEntry }) => {
         className="mb-6 w-full rounded-xl border border-neutral-300 px-4 py-2 text-sm placeholder-neutral-400"
         placeholder="Search memories..."
         value={search}
-        onChange={(e) => setSearch(e
+        onChange={(e) => setSearch(e.target.value)}
+      />
+
+      {loading ? (
+        <p className="text-center text-neutral-500">Loading your journal...</p>
+      ) : filteredEntries.length === 0 ? (
+        <EmptyState />
+      ) : (
+        <div className="space-y-4">
+          {filteredEntries.map((entry) => (
+            <EntryCard
+              key={entry.entry_id}
+              entry={entry}
+              onClick={() => onSelectEntry(entry)}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default JournalView;
