@@ -35,8 +35,13 @@ const EntryModal: React.FC<EntryModalProps> = ({ entry, onClose }) => {
   const handleSubmit = async () => {
     setError('');
 
-    if (!content.trim() || !dateOfMemory.trim()) {
-      setError('Please fill in all required fields.');
+    if (!content.trim() && !media) {
+      setError('Please write something or upload a file.');
+      return;
+    }
+
+    if (!dateOfMemory.trim()) {
+      setError('Please select a date.');
       return;
     }
 
@@ -47,10 +52,11 @@ const EntryModal: React.FC<EntryModalProps> = ({ entry, onClose }) => {
 
     const formData = new FormData();
     formData.append('content', content);
-    formData.append('tags', JSON.stringify(tags.split(',').map(t => t.trim()).filter(Boolean)));
+    formData.append('tags', tags); // plain string — backend splits
     formData.append('date_of_memory', dateOfMemory);
     formData.append('privacy', privacy);
-    formData.append('author_id', 'demo'); // Replace with real user ID later
+    formData.append('author_id', 'demo'); // 🔁 Replace with real user ID
+    formData.append('source_type', 'app');
 
     if (media) {
       formData.append('media', media);
@@ -60,7 +66,7 @@ const EntryModal: React.FC<EntryModalProps> = ({ entry, onClose }) => {
       await createEntry(formData);
       onClose();
     } catch (err) {
-      console.error(err);
+      console.error('Entry save failed:', err);
       setError('Something went wrong. Please try again.');
     }
   };
@@ -85,7 +91,7 @@ const EntryModal: React.FC<EntryModalProps> = ({ entry, onClose }) => {
 
         <div className="space-y-4">
           <textarea
-            placeholder="Write your memory here... *"
+            placeholder="Write your memory here..."
             value={content}
             onChange={(e) => setContent(e.target.value)}
             className="w-full border border-neutral-300 rounded-lg px-4 py-2 text-sm bg-white placeholder-neutral-400"
@@ -94,7 +100,7 @@ const EntryModal: React.FC<EntryModalProps> = ({ entry, onClose }) => {
 
           <input
             type="text"
-            placeholder="e.g. milestones, vacation (optional)"
+            placeholder="Tags (e.g., first smile, milestone, funny)"
             value={tags}
             onChange={(e) => setTags(e.target.value)}
             className="w-full border border-neutral-300 rounded-lg px-4 py-2 text-sm bg-white placeholder-neutral-400"
@@ -120,11 +126,11 @@ const EntryModal: React.FC<EntryModalProps> = ({ entry, onClose }) => {
 
           <div>
             <label className="block text-sm font-medium text-neutral-700 mb-1">
-              Upload photo or video (optional)
+              Upload photo, video, or voice note (optional)
             </label>
             <input
               type="file"
-              accept="image/*,video/*"
+              accept="image/*,video/*,audio/*"
               onChange={(e) => setMedia(e.target.files?.[0] || null)}
               className="block w-full text-sm text-neutral-700 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-neutral-100 file:text-neutral-700 hover:file:bg-neutral-200"
             />
