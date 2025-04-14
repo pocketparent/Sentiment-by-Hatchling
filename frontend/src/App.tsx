@@ -22,6 +22,12 @@ function App() {
   return (
     <Router>
       <div className="bg-[#fefcf9] min-h-screen text-neutral-800 relative">
+        <img
+          src="/hatchling-logo.png"
+          alt="Hatchling logo"
+          className="h-12 mx-auto mt-6 mb-2"
+        />
+
         <Routes>
           <Route path="/" element={<JournalView onSelectEntry={openModal} />} />
           <Route path="/settings" element={<Settings />} />
