@@ -1,7 +1,9 @@
 flask
+flask-cors
 firebase-admin
 openai
 stripe
 gunicorn
-flask-cors
 python-dotenv
+requests
+twilio
