@@ -24,10 +24,11 @@ def index():
     return {"status": "ok", "message": "Hatchling API is live"}, 200
 
 # ✅ Register blueprints
-app.register_blueprint(entry_bp)
-app.register_blueprint(auth_bp)
-app.register_blueprint(invite_bp)
-app.register_blueprint(export_bp)
+# ✅ Register blueprints with /api/ prefixes
+app.register_blueprint(entry_bp, url_prefix="/api/entry")
+app.register_blueprint(auth_bp, url_prefix="/api/auth")
+app.register_blueprint(invite_bp, url_prefix="/api/invite")
+app.register_blueprint(export_bp, url_prefix="/api/export")
 
 if __name__ == "__main__":
     app.run(debug=True)
