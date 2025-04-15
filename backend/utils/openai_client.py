@@ -6,12 +6,12 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 def get_ai_tags(content):
     try:
-        response = client.chat.completions.create(
+        response = openai.chat.completions.create(
             model="gpt-4",
             messages=[
                 {
                     "role": "system",
-                    "content": "You are a helpful assistant who extracts relevant one-word memory tags from journal entries. Only return tags, no explanation."
+                    "content": "You are a helpful assistant who extracts relevant one-word or short memory tags from journal entries. Only return a comma-separated list of tags. No explanations."
                 },
                 {
                     "role": "user",
@@ -22,8 +22,8 @@ def get_ai_tags(content):
             temperature=0.5
         )
         raw = response.choices[0].message.content
-        tags = [tag.strip("#, ").lower() for tag in raw.split() if tag.strip()]
-        return tags[:5]  # Limit to 5
+        tags = [tag.strip("#, ").lower() for tag in raw.split(",") if tag.strip()]
+        return tags[:5]  # limit to 5
     except Exception as e:
         print("AI tag generation failed:", e)
         return []
