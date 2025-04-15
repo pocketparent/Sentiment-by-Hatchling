@@ -43,12 +43,13 @@ def create_entry():
         media_url = None
         transcription = None
 
-       if file:
+        if file:
             try:
                 print(f"📷 Uploading media: {file.filename}")
                 media_url = upload_media_to_firebase(file.stream, file.filename, file.content_type)
                 print(f"✅ Media uploaded: {media_url}")
                 if file.filename.lower().endswith((".m4a", ".mp3", ".ogg")):
+                    file.stream.seek(0)
                     transcription = transcribe_audio(file.stream)
             except Exception as e:
                 logging.exception("Media upload/transcription failed")
