@@ -12,24 +12,36 @@ const EntryCard: React.FC<Props> = ({ entry, onClick }) => {
       className="rounded-2xl shadow-sm border border-gray-200 bg-white p-4 hover:shadow-md transition cursor-pointer"
       onClick={onClick}
     >
-      <div className="flex justify-between items-center mb-2">
-        <span className="text-sm text-gray-500">{entry.date_of_memory}</span>
-        <span className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded-md capitalize">
-          {entry.privacy}
-        </span>
+      <div className="flex justify-between items-center mb-2 text-sm text-gray-500">
+        <span>{entry.date_of_memory || 'Unknown date'}</span>
+        {entry.privacy && (
+          <span className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded-md capitalize">
+            {entry.privacy}
+          </span>
+        )}
       </div>
 
-      <p className="text-gray-800 text-sm whitespace-pre-line">
-        {entry.content || <span className="text-gray-400 italic">No content</span>}
-      </p>
+      {entry.content ? (
+        <p className="text-gray-800 text-sm whitespace-pre-line">{entry.content}</p>
+      ) : (
+        <p className="text-gray-400 italic text-sm">No content</p>
+      )}
 
       {entry.media_url && (
         <div className="mt-3">
-          <img
-            src={entry.media_url}
-            alt="Memory"
-            className="w-full max-h-64 object-cover rounded-lg border border-gray-100"
-          />
+          {entry.media_url.endsWith('.mp4') || entry.media_url.endsWith('.mov') ? (
+            <video
+              controls
+              src={entry.media_url}
+              className="w-full max-h-64 rounded-lg border border-gray-100 object-cover"
+            />
+          ) : (
+            <img
+              src={entry.media_url}
+              alt="Memory"
+              className="w-full max-h-64 object-cover rounded-lg border border-gray-100"
+            />
+          )}
         </div>
       )}
 
