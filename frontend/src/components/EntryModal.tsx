@@ -27,46 +27,47 @@ const EntryModal: React.FC<EntryModalProps> = ({ entry, onClose }) => {
     if (e.target === e.currentTarget) onClose();
   };
 
-  const isFutureDate = (dateStr: string) => {
-    const today = new Date().toISOString().split('T')[0];
-    return dateStr > today;
-  };
-
   const handleSubmit = async () => {
     setError('');
-    console.log('📝 Submitting entry...');
-    console.log('Content:', content);
-    console.log('Tags:', tags);
-    console.log('Date:', dateOfMemory);
-    console.log('Privacy:', privacy);
-    console.log('Media:', media);
 
-    if (!content.trim() && !media) {
+    console.log('📝 SUBMIT INITIATED');
+    console.log('🧾 content:', content);
+    console.log('🧾 dateOfMemory:', dateOfMemory);
+    console.log('🧾 tags:', tags);
+    console.log('🧾 privacy:', privacy);
+    console.log('🧾 media:', media);
+
+    const trimmedContent = content.trim();
+    const trimmedDate = dateOfMemory.trim();
+
+    if (!trimmedContent && !media) {
       setError('Please write something or upload a file.');
       return;
     }
 
-    if (!dateOfMemory.trim()) {
+    if (!trimmedDate) {
       setError('Please select a date.');
       return;
     }
 
-    if (isFutureDate(dateOfMemory)) {
+    const today = new Date().toISOString().split('T')[0];
+    if (trimmedDate > today) {
       setError('The memory date cannot be in the future.');
       return;
     }
 
     try {
       await createEntry({
-        content,
-        date_of_memory: dateOfMemory,
+        content: trimmedContent,
+        date_of_memory: trimmedDate,
         tags: tags.split(',').map(t => t.trim()).filter(Boolean),
         privacy,
-        author_id: 'demo', // ✅ TEMP fallback
+        author_id: 'demo',
         media,
         source_type: 'app',
       });
 
+      console.log('✅ entry created');
       onClose();
     } catch (err) {
       console.error('🔥 Entry save failed:', err);
