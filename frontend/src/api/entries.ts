@@ -11,9 +11,25 @@ export async function fetchEntries(): Promise<JournalEntry[]> {
   return data.entries;
 }
 
-// ✅ Accepts FormData directly
-export async function createEntry(formData: FormData) {
-  // Debug: log all form fields
+export async function createEntry(entry: Partial<JournalEntry>) {
+  const formData = new FormData();
+  formData.append('content', entry.content || '');
+  formData.append('author_id', entry.author_id || 'demo'); // ✅ fallback
+  formData.append('date_of_memory', entry.date_of_memory || '');
+  formData.append('privacy', entry.privacy || 'private');
+
+  // ✅ Always submit a "tags" field — even if empty
+  if (entry.tags && entry.tags.length > 0) {
+    entry.tags.forEach(tag => formData.append('tags', tag));
+  } else {
+    formData.append('tags', ''); // triggers AI tagging
+  }
+
+  if (entry.media) {
+    formData.append('media', entry.media);
+  }
+
+  // 🔍 Debug
   console.log('📤 Submitting FormData:');
   for (const [key, value] of formData.entries()) {
     console.log(`📦 ${key}:`, value);
@@ -33,18 +49,29 @@ export async function createEntry(formData: FormData) {
   return await response.json();
 }
 
-export async function updateEntry(id: string, formData: FormData) {
+export async function updateEntry(id: string, entry: Partial<JournalEntry>) {
+  const formData = new FormData();
+  formData.append('content', entry.content || '');
+  formData.append('author_id', entry.author_id || 'demo');
+  formData.append('date_of_memory', entry.date_of_memory || '');
+  formData.append('privacy', entry.privacy || 'private');
+
+  if (entry.tags && entry.tags.length > 0) {
+    entry.tags.forEach(tag => formData.append('tags', tag));
+  } else {
+    formData.append('tags', '');
+  }
+
+  if (entry.media) {
+    formData.append('media', entry.media);
+  }
+
   const response = await fetch(`${API_BASE}/${id}`, {
     method: 'PATCH',
     body: formData,
   });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error('❌ Update error response:', errorText);
-    throw new Error('Failed to update entry');
-  }
-
+  if (!response.ok) throw new Error('Failed to update entry');
   return await response.json();
 }
 
