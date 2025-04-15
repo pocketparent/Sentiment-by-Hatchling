@@ -163,4 +163,21 @@ def update_entry(entry_id):
         import traceback
         print(traceback.format_exc())
         return jsonify({"error": "Update failed", "details": str(e)}), 500
+@entry_bp.route("/test-openai", methods=["GET"])
+def test_openai():
+    try:
+        prompt = "Say hello from Hatchling"
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=10,
+        )
+        message = response['choices'][0]['message']['content']
+        return jsonify({"response": message})
+    except Exception as e:
+        import traceback
+        print("❌ OpenAI connection failed:")
+        print(traceback.format_exc())
+        return jsonify({"error": "OpenAI test failed", "details": str(e)}), 500
+
 
