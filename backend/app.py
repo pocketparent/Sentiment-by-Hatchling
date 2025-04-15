@@ -1,5 +1,3 @@
-print("🚀 Flask app starting up")
-
 from flask import Flask, request
 from flask_cors import CORS
 from dotenv import load_dotenv
@@ -32,9 +30,10 @@ app.register_blueprint(auth_bp, url_prefix="/api/auth")
 app.register_blueprint(invite_bp, url_prefix="/api/invite")
 app.register_blueprint(export_bp, url_prefix="/api/export")
 
-@app.route("/debug-routes", methods=["GET"])
+@app.route("/debug-routes")
 def debug_routes():
     return {
+        "message": "✅ Backend is alive, but no blueprints registered?",
         "routes": [str(rule) for rule in app.url_map.iter_rules()]
     }
 
