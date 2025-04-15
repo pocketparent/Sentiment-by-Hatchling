@@ -30,5 +30,11 @@ app.register_blueprint(auth_bp, url_prefix="/api/auth")
 app.register_blueprint(invite_bp, url_prefix="/api/invite")
 app.register_blueprint(export_bp, url_prefix="/api/export")
 
+@app.route("/debug-routes", methods=["GET"])
+def debug_routes():
+    return {
+        "routes": [str(rule) for rule in app.url_map.iter_rules()]
+    }
+
 if __name__ == "__main__":
     app.run(debug=True)
