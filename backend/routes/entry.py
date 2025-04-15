@@ -118,13 +118,31 @@ def generate_tags_from_content(content):
 @entry_bp.route("/<entry_id>", methods=["PATCH"])
 def update_entry(entry_id):
     try:
+        print(f"🛠 PATCH /api/entry/{entry_id} hit")
         data = request.form
+        content = data.get("content", "")
+        author_id = data.get("author_id")
+        date_of_memory = data.get("date_of_memory")
+        privacy = data.get("privacy", "private")
+        manual_tags = request.form.getlist("tags")
+        tag_list = [tag.strip() for tag in manual_tags if tag.strip()]
+
+        # ✅ Add AI tags if no tags provided but content exists
+        ai_tags = []
+        if not tag_list and content:
+            try:
+                ai_tags = generate_tags_from_content(content)
+            except Exception:
+                logging.exception("❌ AI tag generation failed in PATCH")
+
+        combined_tags = list(set(tag_list + ai_tags))
+
         update_data = {
-            "content": data.get("content", ""),
-            "author_id": data.get("author_id"),
-            "date_of_memory": data.get("date_of_memory"),
-            "privacy": data.get("privacy", "private"),
-            "tags": [tag.strip() for tag in request.form.getlist("tags") if tag.strip()],
+            "content": content,
+            "author_id": author_id,
+            "date_of_memory": date_of_memory,
+            "privacy": privacy,
+            "tags": combined_tags,
         }
 
         file = request.files.get("media")
@@ -134,7 +152,12 @@ def update_entry(entry_id):
                 update_data["transcription"] = transcribe_audio(file.stream)
 
         db.collection("entries").document(entry_id).update(update_data)
+        print(f"✅ Entry {entry_id} updated successfully")
         return jsonify({"status": "updated"}), 200
+
     except Exception as e:
-        print("❌ Update failed:", e)
-        return jsonify({"error": str(e)}), 500
+        print("❌ Error in PATCH /api/entry/<id>:")
+        import traceback
+        print(traceback.format_exc())
+        return jsonify({"error": "Update failed", "details": str(e)}), 500
+
