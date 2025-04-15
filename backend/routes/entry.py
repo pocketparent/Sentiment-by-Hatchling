@@ -4,87 +4,102 @@ from utils.media import upload_media_to_firebase
 from utils.openai_client import transcribe_audio
 import openai
 import logging
+import traceback
 
 entry_bp = Blueprint("entry", __name__)
 db = firestore.client()
 
+
 @entry_bp.route("", methods=["POST"])
 @entry_bp.route("/", methods=["POST"])
 def create_entry():
-    content = request.form.get("content", "")
-    author_id = request.form.get("author_id")
-    date_of_memory = request.form.get("date_of_memory")
-    privacy = request.form.get("privacy", "private")
-    manual_tags = request.form.get("tags", "")
-    tag_list = [tag.strip() for tag in manual_tags.split(",") if tag.strip()]
-    source_type = request.form.get("source_type", "app")
+    try:
+        print("📥 POST /api/entry hit!")
+        content = request.form.get("content", "")
+        author_id = request.form.get("author_id")
+        date_of_memory = request.form.get("date_of_memory")
+        privacy = request.form.get("privacy", "private")
+        manual_tags = request.form.get("tags", "")
+        source_type = request.form.get("source_type", "app")
 
-    if not author_id or not date_of_memory:
-        return jsonify({"error": "Missing required fields"}), 400
+        tag_list = [tag.strip() for tag in manual_tags.split(",") if tag.strip()]
 
-    ai_tags = []
-    if content:
-        try:
-            ai_tags = generate_tags_from_content(content)
-        except Exception as e:
-            logging.exception("AI tag generation failed")
+        # Validate required fields
+        if not author_id or not date_of_memory:
+            return jsonify({"error": "Missing required fields: author_id or date_of_memory"}), 400
 
-    combined_tags = list(set(tag_list + ai_tags))
+        # ✅ AI Tagging
+        ai_tags = []
+        if content:
+            try:
+                ai_tags = generate_tags_from_content(content)
+            except Exception as e:
+                logging.exception("❌ AI tag generation failed")
 
-    file = request.files.get("media")
-    media_url = None
-    transcription = None
+        combined_tags = list(set(tag_list + ai_tags))
 
-    if file:
-        try:
-            media_url = upload_media_to_firebase(file.stream, file.filename, file.content_type)
-            if file.filename.lower().endswith((".m4a", ".mp3", ".ogg")):
-                transcription = transcribe_audio(file.stream)
-        except Exception as e:
-            logging.exception("Media upload/transcription failed")
+        # ✅ Media Upload
+        file = request.files.get("media")
+        media_url = None
+        transcription = None
 
-    entry = {
-        "content": content,
-        "author_id": author_id,
-        "date_of_memory": date_of_memory,
-        "tags": combined_tags,
-        "privacy": privacy,
-        "media_url": media_url,
-        "transcription": transcription,
-        "source_type": source_type,
-        "created_at": firestore.SERVER_TIMESTAMP
-    }
+        if file:
+            try:
+                media_url = upload_media_to_firebase(file.stream, file.filename, file.content_type)
+                if file.filename.lower().endswith((".m4a", ".mp3", ".ogg")):
+                    transcription = transcribe_audio(file.stream)
+            except Exception as e:
+                logging.exception("❌ Media upload or transcription failed")
 
-    doc_ref = db.collection("entries").add(entry)
+        # ✅ Create Firestore Entry
+        entry = {
+            "content": content,
+            "author_id": author_id,
+            "date_of_memory": date_of_memory,
+            "tags": combined_tags,
+            "privacy": privacy,
+            "media_url": media_url,
+            "transcription": transcription,
+            "source_type": source_type,
+            "created_at": firestore.SERVER_TIMESTAMP
+        }
 
-    logging.info(f"Entry created: {doc_ref[1].id} by {author_id}")
+        doc_ref = db.collection("entries").add(entry)
+        logging.info(f"✅ Entry created: {doc_ref[1].id} by {author_id}")
+        return jsonify({"entry_id": doc_ref[1].id, "status": "created"}), 200
 
-    return jsonify({"entry_id": doc_ref[1].id, "status": "created"}), 200
+    except Exception as e:
+        print("❌ Error in POST /api/entry:")
+        print(traceback.format_exc())
+        return jsonify({"error": "Internal server error", "details": str(e)}), 500
+
 
 @entry_bp.route("", methods=["GET"])
 @entry_bp.route("/", methods=["GET"])
 def get_entries():
     try:
         print("📥 GET /api/entry hit!")
-        print("Attempting to connect to Firestore...")
+        print("⚡ Connecting to Firestore...")
 
         entries = []
         docs = db.collection("entries").order_by("date_of_memory", direction=firestore.Query.DESCENDING).stream()
-        
-        print("Firestore query executed, processing results...")
+
+        print("✅ Firestore query executed")
         for doc in docs:
             entry = doc.to_dict()
             entry["entry_id"] = doc.id
             entries.append(entry)
-            
-        print(f"✅ Returning {len(entries)} entries")
+
+        print(f"📦 Returning {len(entries)} entries")
         return jsonify({"entries": entries}), 200
+
     except Exception as e:
-        import traceback
         print("❌ Error in GET /api/entry:")
         print(traceback.format_exc())
         return jsonify({"error": "Internal server error", "details": str(e)}), 500
 
+
+# ✅ AI Helper
 def generate_tags_from_content(content):
     prompt = f"Generate 3 short, relevant tags (single words or short phrases) for the following memory:\n\n\"{content}\"\n\nTags:"
     response = openai.ChatCompletion.create(
