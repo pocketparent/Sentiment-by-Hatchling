@@ -30,12 +30,6 @@ const EntryModal: React.FC<EntryModalProps> = ({ entry, onClose, onEntrySaved })
 
   const handleSubmit = async () => {
     setError('');
-    console.log('📝 SUBMIT INITIATED');
-    console.log('🧾 content:', content);
-    console.log('🧾 dateOfMemory:', dateOfMemory);
-    console.log('🧾 tags:', tags);
-    console.log('🧾 privacy:', privacy);
-    console.log('🧾 media:', media);
 
     const trimmedContent = content.trim();
     const trimmedDate = dateOfMemory.trim();
@@ -57,25 +51,30 @@ const EntryModal: React.FC<EntryModalProps> = ({ entry, onClose, onEntrySaved })
     }
 
     try {
-      const entryPayload = {
-        content: trimmedContent,
-        date_of_memory: trimmedDate,
-        tags: tags.split(',').map(t => t.trim()).filter(Boolean),
-        privacy,
-        author_id: 'demo',
-        media,
-        source_type: 'app',
-      };
+      const formData = new FormData();
+      formData.append('content', trimmedContent);
+      formData.append('date_of_memory', trimmedDate);
+      formData.append('privacy', privacy);
+      formData.append('source_type', 'app');
+      formData.append('author_id', 'demo');
 
-      if (entry?.entry_id) {
-        await updateEntry(entry.entry_id, entryPayload);
-        console.log('✅ entry updated');
-      } else {
-        await createEntry(entryPayload);
-        console.log('✅ entry created');
+      tags
+        .split(',')
+        .map((tag) => tag.trim())
+        .filter(Boolean)
+        .forEach((tag) => formData.append('tags', tag));
+
+      if (media) {
+        formData.append('media', media);
       }
 
-      onEntrySaved(); // 👈 refresh list
+      if (entry?.entry_id) {
+        await updateEntry(entry.entry_id, formData);
+      } else {
+        await createEntry(formData);
+      }
+
+      onEntrySaved();
       onClose();
     } catch (err) {
       console.error('🔥 Entry save failed:', err);
