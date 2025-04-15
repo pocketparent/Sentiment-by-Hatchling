@@ -9,7 +9,6 @@ import traceback
 entry_bp = Blueprint("entry", __name__)
 db = firestore.client()
 
-
 @entry_bp.route("", methods=["POST"])
 @entry_bp.route("/", methods=["POST"])
 def create_entry():
@@ -33,7 +32,7 @@ def create_entry():
         if content:
             try:
                 ai_tags = generate_tags_from_content(content)
-            except Exception as e:
+            except Exception:
                 logging.exception("❌ AI tag generation failed")
 
         combined_tags = list(set(tag_list + ai_tags))
@@ -46,13 +45,15 @@ def create_entry():
         if file:
             try:
                 print(f"📷 Uploading media: {file.filename}")
+                file.stream.seek(0)
                 media_url = upload_media_to_firebase(file.stream, file.filename, file.content_type)
                 print(f"✅ Media uploaded: {media_url}")
+
+                file.stream.seek(0)
                 if file.filename.lower().endswith((".m4a", ".mp3", ".ogg")):
-                    file.stream.seek(0)
                     transcription = transcribe_audio(file.stream)
-            except Exception as e:
-                logging.exception("Media upload/transcription failed")
+            except Exception:
+                logging.exception("Media upload or transcription failed")
 
         # ✅ Create Firestore Entry
         entry = {
