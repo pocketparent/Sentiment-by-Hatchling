@@ -18,10 +18,10 @@ def create_entry():
         author_id = request.form.get("author_id")
         date_of_memory = request.form.get("date_of_memory")
         privacy = request.form.get("privacy", "private")
-        manual_tags = request.form.get("tags", "")
+        manual_tags = request.form.getlist("tags")
         source_type = request.form.get("source_type", "app")
 
-        tag_list = [tag.strip() for tag in manual_tags.split(",") if tag.strip()]
+        tag_list = [tag.strip() for tag in manual_tags if tag.strip()]
 
         # Validate required fields
         if not author_id or not date_of_memory:
