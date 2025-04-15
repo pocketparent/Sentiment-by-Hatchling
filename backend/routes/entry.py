@@ -41,6 +41,9 @@ def create_entry():
         file = request.files.get("media")
         media_url = None
         transcription = None
+        print(f"📂 Media file received: {file.filename if file else 'None'}")
+        print(f"📏 File size: {file.content_length if file else 'N/A'}")
+
 
         if file:
             try:
