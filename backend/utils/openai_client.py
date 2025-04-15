@@ -6,27 +6,32 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 def get_ai_tags(content):
     try:
+        print("🔍 Sending AI prompt...")
         response = openai.chat.completions.create(
             model="gpt-4",
             messages=[
                 {
                     "role": "system",
-                    "content": "You are a helpful assistant who extracts relevant one-word or short memory tags from journal entries. Only return a comma-separated list of tags. No explanations."
+                    "content": "You are a helpful assistant who extracts 3-5 short descriptive tags from a journal entry. Return only a comma-separated list of tags, no explanation."
                 },
                 {
                     "role": "user",
-                    "content": f"Please provide 3-5 descriptive tags for the following memory:\n\n{content}"
+                    "content": f"Please provide tags for this memory:\n\n{content}"
                 }
             ],
             max_tokens=50,
             temperature=0.5
         )
         raw = response.choices[0].message.content
+        print("🔁 Raw response from OpenAI:", raw)
+
         tags = [tag.strip("#, ").lower() for tag in raw.split(",") if tag.strip()]
-        return tags[:5]  # limit to 5
+        print("✅ Parsed tags:", tags)
+        return tags[:5]
     except Exception as e:
-        print("AI tag generation failed:", e)
+        print("❌ AI tag generation failed:", e)
         return []
+
 
 def transcribe_audio(file_stream):
     try:
