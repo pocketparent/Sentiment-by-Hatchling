@@ -1,12 +1,12 @@
-import openai
+from openai import OpenAI
 import os
 import tempfile
 
-openai.api_key = os.getenv("OPENAI_API_KEY")
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 def get_ai_tags(content):
     try:
-        response = openai.ChatCompletion.create(
+        response = client.chat.completions.create(
             model="gpt-4",
             messages=[
                 {
@@ -21,7 +21,7 @@ def get_ai_tags(content):
             max_tokens=50,
             temperature=0.5
         )
-        raw = response['choices'][0]['message']['content']
+        raw = response.choices[0].message.content
         tags = [tag.strip("#, ").lower() for tag in raw.split() if tag.strip()]
         return tags[:5]  # Limit to 5
     except Exception as e:
@@ -35,8 +35,11 @@ def transcribe_audio(file_stream):
             temp_file_path = temp_file.name
 
         with open(temp_file_path, "rb") as audio_file:
-            transcript = openai.Audio.transcribe("whisper-1", audio_file)
-            return transcript.get("text", "").strip()
+            transcript = client.audio.transcriptions.create(
+                model="whisper-1",
+                file=audio_file
+            )
+            return transcript.text.strip()
     except Exception as e:
         print("Audio transcription failed:", e)
         return ""
