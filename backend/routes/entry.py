@@ -20,46 +20,45 @@ def create_entry():
         manual_tags = request.form.getlist("tags")
         source_type = request.form.get("source_type", "app")
 
-        tag_list = [tag.strip() for tag in manual_tags if tag.strip()]
-
         if not author_id or not date_of_memory:
             return jsonify({"error": "Missing required fields: author_id or date_of_memory"}), 400
 
-        # ✅ AI Tagging (OpenAI v1-compatible)
+        # Handle tags
+        tag_list = [tag.strip() for tag in manual_tags if tag.strip()]
         ai_tags = []
         if content:
             try:
                 ai_tags = get_ai_tags(content)
-            except Exception as e:
+                print("🧠 AI tags generated:", ai_tags)
+            except Exception:
                 logging.exception("❌ AI tag generation failed")
-
         combined_tags = list(set(tag_list + ai_tags))
 
+        # Handle media
         file = request.files.get("media")
         media_url = None
         transcription = None
-
-        print(f"📂 Media file received: {file.filename if file else 'None'}")
-        print(f"📏 File size: {file.content_length if file else 'N/A'}")
-
         if file:
             try:
+                print(f"📂 Media file received: {file.filename}")
                 file.stream.seek(0)
                 media_url = upload_media_to_firebase(file.stream, file.filename, file.content_type)
-                print(f"✅ Media uploaded: {media_url}")
+                print(f"✅ Media uploaded to: {media_url}")
 
                 file.stream.seek(0)
                 if file.filename.lower().endswith((".m4a", ".mp3", ".ogg")):
                     transcription = transcribe_audio(file.stream)
+                    print(f"📝 Transcription: {transcription}")
             except Exception:
-                logging.exception("Media upload or transcription failed")
+                logging.exception("❌ Media upload or transcription failed")
 
+        # Compose and save entry
         entry = {
             "content": content,
             "author_id": author_id,
             "date_of_memory": date_of_memory,
-            "tags": combined_tags,
             "privacy": privacy,
+            "tags": combined_tags,
             "media_url": media_url,
             "transcription": transcription,
             "source_type": source_type,
@@ -105,12 +104,13 @@ def update_entry(entry_id):
         date_of_memory = data.get("date_of_memory")
         privacy = data.get("privacy", "private")
         manual_tags = request.form.getlist("tags")
-        tag_list = [tag.strip() for tag in manual_tags if tag.strip()]
 
+        tag_list = [tag.strip() for tag in manual_tags if tag.strip()]
         ai_tags = []
         if not tag_list and content:
             try:
                 ai_tags = get_ai_tags(content)
+                print("🧠 AI tags (update):", ai_tags)
             except Exception:
                 logging.exception("❌ AI tag generation failed in PATCH")
 
@@ -121,17 +121,21 @@ def update_entry(entry_id):
             "author_id": author_id,
             "date_of_memory": date_of_memory,
             "privacy": privacy,
-            "tags": combined_tags,
+            "tags": combined_tags
         }
 
         file = request.files.get("media")
         if file:
-            file.stream.seek(0)
-            update_data["media_url"] = upload_media_to_firebase(file.stream, file.filename, file.content_type)
+            try:
+                print(f"📂 Updating with media file: {file.filename}")
+                file.stream.seek(0)
+                update_data["media_url"] = upload_media_to_firebase(file.stream, file.filename, file.content_type)
 
-            file.stream.seek(0)
-            if file.filename.lower().endswith((".m4a", ".mp3", ".ogg")):
-                update_data["transcription"] = transcribe_audio(file.stream)
+                file.stream.seek(0)
+                if file.filename.lower().endswith((".m4a", ".mp3", ".ogg")):
+                    update_data["transcription"] = transcribe_audio(file.stream)
+            except Exception:
+                logging.exception("❌ Media upload or transcription failed in PATCH")
 
         db.collection("entries").document(entry_id).update(update_data)
         print(f"✅ Entry {entry_id} updated successfully")
@@ -146,7 +150,6 @@ def update_entry(entry_id):
 def test_openai():
     try:
         prompt = "Say hello from Hatchling"
-        from utils.openai_client import get_ai_tags
         tags = get_ai_tags(prompt)
         return jsonify({"response": f"AI responded with: {tags}"})
     except Exception as e:
@@ -163,5 +166,6 @@ def test_upload():
         url = upload_media_to_firebase(file.stream, file.filename, file.content_type)
         return jsonify({"media_url": url}), 200
     except Exception as e:
-        print("❌ Upload test failed:", e)
+        print("❌ Upload test failed:")
+        print(traceback.format_exc())
         return jsonify({"error": str(e)}), 500
