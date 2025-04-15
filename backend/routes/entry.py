@@ -64,14 +64,26 @@ def create_entry():
 @entry_bp.route("", methods=["GET"])
 @entry_bp.route("/", methods=["GET"])
 def get_entries():
-    print("📥 GET /api/entry hit!")  # Optional debug print
-    entries = []
-    docs = db.collection("entries").order_by("date_of_memory", direction=firestore.Query.DESCENDING).stream()
-    for doc in docs:
-        entry = doc.to_dict()
-        entry["entry_id"] = doc.id
-        entries.append(entry)
-    return jsonify({"entries": entries}), 200
+    try:
+        print("📥 GET /api/entry hit!")
+        print("Attempting to connect to Firestore...")
+
+        entries = []
+        docs = db.collection("entries").order_by("date_of_memory", direction=firestore.Query.DESCENDING).stream()
+        
+        print("Firestore query executed, processing results...")
+        for doc in docs:
+            entry = doc.to_dict()
+            entry["entry_id"] = doc.id
+            entries.append(entry)
+            
+        print(f"✅ Returning {len(entries)} entries")
+        return jsonify({"entries": entries}), 200
+    except Exception as e:
+        import traceback
+        print("❌ Error in GET /api/entry:")
+        print(traceback.format_exc())
+        return jsonify({"error": "Internal server error", "details": str(e)}), 500
 
 def generate_tags_from_content(content):
     prompt = f"Generate 3 short, relevant tags (single words or short phrases) for the following memory:\n\n\"{content}\"\n\nTags:"
