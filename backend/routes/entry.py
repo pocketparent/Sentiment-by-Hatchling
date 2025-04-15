@@ -114,3 +114,27 @@ def generate_tags_from_content(content):
     )
     tags_text = response['choices'][0]['message']['content']
     return [tag.strip("# ").lower() for tag in tags_text.split(",") if tag]
+
+@entry_bp.route("/<entry_id>", methods=["PATCH"])
+def update_entry(entry_id):
+    try:
+        data = request.form
+        update_data = {
+            "content": data.get("content", ""),
+            "author_id": data.get("author_id"),
+            "date_of_memory": data.get("date_of_memory"),
+            "privacy": data.get("privacy", "private"),
+            "tags": [tag.strip() for tag in request.form.getlist("tags") if tag.strip()],
+        }
+
+        file = request.files.get("media")
+        if file:
+            update_data["media_url"] = upload_media_to_firebase(file.stream, file.filename, file.content_type)
+            if file.filename.lower().endswith((".m4a", ".mp3", ".ogg")):
+                update_data["transcription"] = transcribe_audio(file.stream)
+
+        db.collection("entries").document(entry_id).update(update_data)
+        return jsonify({"status": "updated"}), 200
+    except Exception as e:
+        print("❌ Update failed:", e)
+        return jsonify({"error": str(e)}), 500
