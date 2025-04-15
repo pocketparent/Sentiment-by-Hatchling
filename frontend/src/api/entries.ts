@@ -14,7 +14,7 @@ export async function fetchEntries(): Promise<JournalEntry[]> {
 export async function createEntry(entry: Partial<JournalEntry>) {
   const formData = new FormData();
   formData.append('content', entry.content || '');
-  formData.append('author_id', entry.author_id || '');
+  formData.append('author_id', 'demo');
   formData.append('date_of_memory', entry.date_of_memory || '');
   formData.append('privacy', entry.privacy || 'private');
   entry.tags?.forEach(tag => formData.append('tags', tag));
