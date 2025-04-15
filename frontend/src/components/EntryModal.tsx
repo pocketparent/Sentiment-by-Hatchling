@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { JournalEntry } from '../types';
-import { createEntry } from '../api/entries';
+import { createEntry, updateEntry } from '../api/entries';
 
 interface EntryModalProps {
   entry: JournalEntry | null;
@@ -30,6 +30,12 @@ const EntryModal: React.FC<EntryModalProps> = ({ entry, onClose, onEntrySaved })
 
   const handleSubmit = async () => {
     setError('');
+    console.log('📝 SUBMIT INITIATED');
+    console.log('🧾 content:', content);
+    console.log('🧾 dateOfMemory:', dateOfMemory);
+    console.log('🧾 tags:', tags);
+    console.log('🧾 privacy:', privacy);
+    console.log('🧾 media:', media);
 
     const trimmedContent = content.trim();
     const trimmedDate = dateOfMemory.trim();
@@ -51,7 +57,7 @@ const EntryModal: React.FC<EntryModalProps> = ({ entry, onClose, onEntrySaved })
     }
 
     try {
-      await createEntry({
+      const entryPayload = {
         content: trimmedContent,
         date_of_memory: trimmedDate,
         tags: tags.split(',').map(t => t.trim()).filter(Boolean),
@@ -59,9 +65,17 @@ const EntryModal: React.FC<EntryModalProps> = ({ entry, onClose, onEntrySaved })
         author_id: 'demo',
         media,
         source_type: 'app',
-      });
+      };
 
-      onEntrySaved(); // 👈 trigger refresh
+      if (entry?.entry_id) {
+        await updateEntry(entry.entry_id, entryPayload);
+        console.log('✅ entry updated');
+      } else {
+        await createEntry(entryPayload);
+        console.log('✅ entry created');
+      }
+
+      onEntrySaved(); // 👈 refresh list
       onClose();
     } catch (err) {
       console.error('🔥 Entry save failed:', err);
