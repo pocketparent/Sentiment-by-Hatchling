@@ -18,7 +18,7 @@ from routes.export import export_bp
 # ✅ Create and configure Flask app
 app = Flask(__name__)
 app.url_map.strict_slashes = False  # 🔧 Accept /api/entry and /api/entry/ the same
-CORS(app, origins=["https://myhatchling.ai"])
+CORS(app, origins=["https://myhatchling.ai", "http://localhost:5173"])
 
 @app.route("/", methods=["GET", "HEAD"])
 def index():
