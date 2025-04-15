@@ -5,6 +5,7 @@ import { fetchEntries } from '../api/entries';
 import EntryCard from './EntryCard';
 import EmptyState from './EmptyState';
 import { Settings } from 'lucide-react';
+import EntryModal from './EntryModal';
 
 interface Props {
   onSelectEntry: (entry: JournalEntry | null) => void;
@@ -15,21 +16,22 @@ const JournalView: React.FC<Props> = ({ onSelectEntry }) => {
   const [filteredEntries, setFilteredEntries] = useState<JournalEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [showModal, setShowModal] = useState(false);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    const loadEntries = async () => {
-      try {
-        const data = await fetchEntries();
-        setEntries(data);
-        setFilteredEntries(data);
-      } catch (error) {
-        console.error('Failed to fetch entries:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
+  const loadEntries = async () => {
+    try {
+      const data = await fetchEntries();
+      setEntries(data);
+      setFilteredEntries(data);
+    } catch (error) {
+      console.error('Failed to fetch entries:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  useEffect(() => {
     loadEntries();
   }, []);
 
@@ -49,6 +51,14 @@ const JournalView: React.FC<Props> = ({ onSelectEntry }) => {
 
   return (
     <div className="relative px-4 py-6 max-w-2xl mx-auto pb-24">
+      {showModal && (
+        <EntryModal
+          entry={null}
+          onClose={() => setShowModal(false)}
+          onEntrySaved={loadEntries}
+        />
+      )}
+
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-2xl font-semibold text-center flex-1">Your Saved Memories</h2>
         <button
@@ -59,6 +69,13 @@ const JournalView: React.FC<Props> = ({ onSelectEntry }) => {
           <Settings size={20} />
         </button>
       </div>
+
+      <button
+        onClick={() => setShowModal(true)}
+        className="mb-4 w-full bg-black text-white py-2 rounded-lg hover:bg-neutral-800 transition"
+      >
+        + New Memory
+      </button>
 
       <input
         type="text"
