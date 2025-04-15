@@ -4,7 +4,7 @@ from werkzeug.utils import secure_filename
 import uuid
 
 def upload_media_to_firebase(file_stream, filename, content_type):
-    bucket = storage.bucket()
+    bucket = storage.bucket(os.getenv("FIREBASE_STORAGE_BUCKET"))
     unique_filename = f"{uuid.uuid4().hex}_{secure_filename(filename)}"
     blob = bucket.blob(unique_filename)
 
