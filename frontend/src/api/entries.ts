@@ -70,3 +70,7 @@ export async function deleteEntry(id: string) {
   if (!response.ok) throw new Error('Failed to delete entry');
   return await response.json();
 }
+interface EntryModalProps {
+  onClose: () => void;
+  onEntrySaved: () => void;  // 👈 Add this
+}
