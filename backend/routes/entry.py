@@ -180,4 +180,15 @@ def test_openai():
         print(traceback.format_exc())
         return jsonify({"error": "OpenAI test failed", "details": str(e)}), 500
 
+@entry_bp.route("/test-upload", methods=["POST"])
+def test_upload():
+    try:
+        file = request.files.get("media")
+        if not file:
+            return jsonify({"error": "No file uploaded"}), 400
+        from utils.media import upload_media_to_firebase
+        url = upload_media_to_firebase(file.stream, file.filename, file.content_type)
+        return jsonify({"media_url": url}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
