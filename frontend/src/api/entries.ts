@@ -1,6 +1,6 @@
 import { JournalEntry } from '../types';
 
-const API_BASE = '/api/entry';
+const API_BASE = import.meta.env.VITE_API_URL || '/api/entry';
 
 export async function fetchEntries(): Promise<JournalEntry[]> {
   const response = await fetch(API_BASE);
