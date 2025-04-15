@@ -5,9 +5,10 @@ import { createEntry } from '../api/entries';
 interface EntryModalProps {
   entry: JournalEntry | null;
   onClose: () => void;
+  onEntrySaved: () => void;
 }
 
-const EntryModal: React.FC<EntryModalProps> = ({ entry, onClose }) => {
+const EntryModal: React.FC<EntryModalProps> = ({ entry, onClose, onEntrySaved }) => {
   const [content, setContent] = useState(entry?.content || '');
   const [tags, setTags] = useState(entry?.tags?.join(', ') || '');
   const [dateOfMemory, setDateOfMemory] = useState(entry?.date_of_memory || '');
@@ -29,13 +30,6 @@ const EntryModal: React.FC<EntryModalProps> = ({ entry, onClose }) => {
 
   const handleSubmit = async () => {
     setError('');
-
-    console.log('📝 SUBMIT INITIATED');
-    console.log('🧾 content:', content);
-    console.log('🧾 dateOfMemory:', dateOfMemory);
-    console.log('🧾 tags:', tags);
-    console.log('🧾 privacy:', privacy);
-    console.log('🧾 media:', media);
 
     const trimmedContent = content.trim();
     const trimmedDate = dateOfMemory.trim();
@@ -67,7 +61,7 @@ const EntryModal: React.FC<EntryModalProps> = ({ entry, onClose }) => {
         source_type: 'app',
       });
 
-      console.log('✅ entry created');
+      onEntrySaved(); // 👈 trigger refresh
       onClose();
     } catch (err) {
       console.error('🔥 Entry save failed:', err);
@@ -126,7 +120,7 @@ const EntryModal: React.FC<EntryModalProps> = ({ entry, onClose }) => {
           >
             <option value="private">Private</option>
             <option value="shared">Shared</option>
-        </select>
+          </select>
 
           <div>
             <label className="block text-sm font-medium text-neutral-700 mb-1">
