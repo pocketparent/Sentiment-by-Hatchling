@@ -126,7 +126,7 @@ const EntryModal: React.FC<EntryModalProps> = ({ entry, onClose }) => {
           >
             <option value="private">Private</option>
             <option value="shared">Shared</option>
-          </select>
+        </select>
 
           <div>
             <label className="block text-sm font-medium text-neutral-700 mb-1">
@@ -134,6 +134,7 @@ const EntryModal: React.FC<EntryModalProps> = ({ entry, onClose }) => {
             </label>
             <input
               type="file"
+              name="media"
               accept="image/*,video/*,audio/*"
               onChange={(e) => setMedia(e.target.files?.[0] || null)}
               className="block w-full text-sm text-neutral-700 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-neutral-100 file:text-neutral-700 hover:file:bg-neutral-200"
