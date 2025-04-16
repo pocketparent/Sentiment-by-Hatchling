@@ -1,0 +1,249 @@
+/* Reset App.css to fix styling conflicts */
+
+/* Base app container */
+.App {
+  font-family: 'Inter', 'Lato', sans-serif;
+  color: #8C6F5E;
+  background-color: #F9F4EF;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Header styling */
+.App-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  background-color: white;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  position: relative;
+  z-index: 10;
+}
+
+/* Logo container */
+.logo-container {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.logo-container img {
+  height: 2.5rem;
+  width: auto;
+  object-fit: contain;
+}
+
+/* Main content area */
+.App-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Settings button */
+.settings-button {
+  background: none;
+  border: none;
+  color: #8C6F5E;
+  cursor: pointer;
+  padding: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.settings-button:hover {
+  color: #D3C2B4;
+}
+
+/* Journal container */
+.journal-container {
+  max-width: 768px;
+  margin: 0 auto;
+  width: 100%;
+  padding: 1rem;
+  background-color: #F9F4EF;
+}
+
+/* Search box */
+.search-container {
+  margin-bottom: 1rem;
+  position: relative;
+}
+
+.search-container input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid #EADBC8;
+  border-radius: 0.5rem;
+  background-color: white;
+  color: #8C6F5E;
+}
+
+.search-container input:focus {
+  outline: none;
+  border-color: #D3C2B4;
+}
+
+/* Add button */
+.add-button {
+  position: fixed;
+  bottom: 2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 50%;
+  background-color: #8C6F5E;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  z-index: 20;
+}
+
+.add-button:hover {
+  background-color: #D3C2B4;
+}
+
+/* Empty state */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 2rem;
+  color: #8C6F5E;
+}
+
+.empty-state h2 {
+  margin-bottom: 1rem;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.empty-state p {
+  margin-bottom: 1rem;
+  font-size: 1rem;
+}
+
+/* Hide debug elements */
+[class*="debug"], [id*="debug"], [data-testid] {
+  display: none !important;
+}
+
+/* Fix for duplicate elements */
+.App-header:not(:first-of-type),
+.journal-container:not(:first-of-type),
+.search-container:not(:first-of-type),
+.add-button:not(:first-of-type) {
+  display: none !important;
+}
+
+/* Ensure proper color palette */
+.bg-soft-beige {
+  background-color: #F9F4EF !important;
+}
+
+.text-clay-brown {
+  color: #8C6F5E !important;
+}
+
+.bg-clay-brown {
+  background-color: #8C6F5E !important;
+}
+
+.hover\:bg-blush-pink:hover {
+  background-color: #F4E3DA !important;
+}
+
+/* Ensure proper button styling */
+button {
+  border-radius: 1rem;
+  transition: background-color 0.2s, color 0.2s;
+}
+
+/* Ensure proper input styling */
+input {
+  border-radius: 0.5rem;
+}
+
+input:focus {
+  outline: none;
+  border-color: #F4E3DA;
+}
+
+/* Ensure proper modal styling */
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background-color: white;
+  padding: 2rem;
+  border-radius: 0.5rem;
+  max-width: 90%;
+  width: 500px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .modal-content {
+    width: 95%;
+    padding: 1rem;
+  }
+  
+  .App-header {
+    padding: 0.5rem 1rem;
+  }
+  
+  .logo-container img {
+    height: 2rem;
+  }
+
+  .logo-container h1 {
+    font-size: 1.5rem;
+  }
+}
+
+/* Mobile optimizations */
+@media (max-width: 480px) {
+  .App-header {
+    padding: 0.5rem;
+  }
+  
+  .logo-container {
+    gap: 0.25rem;
+  }
+  
+  .logo-container img {
+    height: 1.75rem;
+  }
+  
+  .logo-container h1 {
+    font-size: 1.25rem;
+  }
+  
+  .add-button {
+    width: 3rem;
+    height: 3rem;
+  }
+}
