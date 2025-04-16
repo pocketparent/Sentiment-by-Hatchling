@@ -5,6 +5,8 @@ from utils.openai_client import transcribe_audio, get_ai_tags
 import logging
 import traceback
 from datetime import datetime
+import os
+import openai
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -337,6 +339,79 @@ def delete_entry(entry_id):
         logger.error(traceback.format_exc())
         return jsonify({"error": "Delete failed", "details": str(e)}), 500
 
+# NEW ENDPOINT: Generate AI tags
+@entry_bp.route("/generate-tags", methods=["POST"])
+def generate_tags():
+    """
+    Generate AI tags for entry content.
+    
+    Request body:
+    - content: Text content to generate tags for
+    
+    Returns:
+    - tags: List of generated tags
+    """
+    try:
+        logger.info("📥 POST /api/entry/generate-tags hit!")
+        data = request.json
+        content = data.get("content", "")
+        
+        if not content or len(content.strip()) < 10:
+            logger.warning("Content too short for tag generation")
+            return jsonify({"error": "Content is too short for tag generation"}), 400
+        
+        logger.info("🤖 Generating AI tags for content")
+        
+        # Check if OpenAI API key is configured
+        if not os.environ.get("OPENAI_API_KEY"):
+            logger.warning("OpenAI API key not configured, using mock tags")
+            return jsonify({"tags": ["moment", "memory", "experience"]})
+        
+        # Try to use the existing get_ai_tags function
+        try:
+            tags = get_ai_tags(content)
+            logger.info(f"✅ AI tags generated: {tags}")
+            return jsonify({"tags": tags})
+        except Exception as e:
+            logger.error(f"❌ Error using get_ai_tags: {str(e)}")
+            
+            # Fallback to direct OpenAI API call
+            try:
+                openai.api_key = os.environ.get("OPENAI_API_KEY")
+                response = openai.ChatCompletion.create(
+                    model="gpt-3.5-turbo",
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": "You are a helpful assistant that generates relevant tags for journal entries. Generate 3-5 single-word tags that capture the essence of the content. Return only the tags as a comma-separated list without any additional text."
+                        },
+                        {
+                            "role": "user",
+                            "content": content
+                        }
+                    ],
+                    max_tokens=50,
+                    temperature=0.7,
+                )
+                
+                # Process the response to extract tags
+                tag_text = response.choices[0].message.content.strip()
+                tags = [tag.strip().lower() for tag in tag_text.split(',')]
+                tags = [tag for tag in tags if tag and len(tag) < 20][:5]  # Limit to 5 tags
+                
+                logger.info(f"✅ AI tags generated (fallback): {tags}")
+                return jsonify({"tags": tags})
+            except Exception as e:
+                logger.error(f"❌ Fallback tag generation failed: {str(e)}")
+                # Return default tags as a last resort
+                return jsonify({"tags": ["moment", "memory", "experience"]}), 200
+                
+    except Exception as e:
+        logger.error(f"❌ Error in POST /api/entry/generate-tags: {str(e)}")
+        logger.error(traceback.format_exc())
+        # Return default tags rather than an error to ensure frontend doesn't break
+        return jsonify({"tags": ["moment", "memory", "experience"]}), 200
+
 # Test routes for development
 @entry_bp.route("/test-openai", methods=["GET"])
 def test_openai():
@@ -365,3 +440,4 @@ def test_upload():
         logger.error(f"❌ Upload test failed: {str(e)}")
         logger.error(traceback.format_exc())
         return jsonify({"error": str(e)}), 500
+
