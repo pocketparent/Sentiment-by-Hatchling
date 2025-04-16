@@ -31,7 +31,7 @@ export async function fetchEntries(filters = {}): Promise<JournalEntry[]> {
     }
     
     const data = await response.json();
-    return data.entries;
+    return data.entries || [];
   } catch (error) {
     console.error('❌ Fetch entries error:', error);
     throw error;
@@ -205,6 +205,35 @@ export async function generateAITags(content: string): Promise<string[]> {
     
     console.log('🤖 Requesting AI tags for content');
     
+    // For now, return mock tags to prevent errors while backend is being implemented
+    // This ensures the UI works even if the backend endpoint isn't ready
+    console.log('⚠️ Using mock tags while backend endpoint is being implemented');
+    
+    // Simulate network delay
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // Generate some relevant tags based on content
+    const mockTags = [];
+    
+    if (content.toLowerCase().includes('baby')) mockTags.push('baby');
+    if (content.toLowerCase().includes('sleep')) mockTags.push('sleep');
+    if (content.toLowerCase().includes('food') || content.toLowerCase().includes('eat')) mockTags.push('food');
+    if (content.toLowerCase().includes('smile') || content.toLowerCase().includes('laugh')) mockTags.push('happy');
+    if (content.toLowerCase().includes('cry')) mockTags.push('emotional');
+    if (content.toLowerCase().includes('walk') || content.toLowerCase().includes('crawl')) mockTags.push('milestone');
+    if (content.toLowerCase().includes('doctor') || content.toLowerCase().includes('sick')) mockTags.push('health');
+    
+    // Add some default tags if we don't have enough
+    if (mockTags.length < 2) {
+      const defaultTags = ['memory', 'moment', 'family', 'growth', 'development'];
+      const randomTag = defaultTags[Math.floor(Math.random() * defaultTags.length)];
+      mockTags.push(randomTag);
+    }
+    
+    console.log('✅ Mock AI tags generated:', mockTags);
+    return mockTags;
+    
+    /* Uncomment this when backend endpoint is ready
     const response = await fetch(`${API_BASE}/generate-tags`, {
       method: 'POST',
       headers: {
@@ -223,8 +252,10 @@ export async function generateAITags(content: string): Promise<string[]> {
     const result = await response.json();
     console.log('✅ AI tags generated:', result.tags);
     return result.tags || [];
+    */
   } catch (error) {
     console.error('❌ AI tag generation error:', error);
+    // Return empty array instead of throwing to prevent UI errors
     return [];
   }
 }
