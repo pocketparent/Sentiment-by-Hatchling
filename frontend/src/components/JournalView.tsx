@@ -1,55 +1,33 @@
 import React, { useState, useEffect } from 'react';
 import { JournalEntry } from '../types';
 import { EntryFilters } from '../types/entry';
-import { fetchEntries } from '../api/entries';
 import EntryCard from './EntryCard';
 import EmptyState from './EmptyState';
 import { Settings, Trash, Search, Tag, Filter, Calendar, User, Eye } from 'lucide-react';
 import EntryModal from './EntryModal';
 
 interface Props {
+  entries: JournalEntry[];
   onSelectEntry: (entry: JournalEntry | null) => void;
   onOpenSettings: () => void;
+  onRefresh: () => void;
 }
 
-const JournalView: React.FC<Props> = ({ onSelectEntry, onOpenSettings }) => {
-  const [entries, setEntries] = useState<JournalEntry[]>([]);
+const JournalView: React.FC<Props> = ({ entries, onSelectEntry, onOpenSettings, onRefresh }) => {
   const [filteredEntries, setFilteredEntries] = useState<JournalEntry[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState<JournalEntry | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [filters, setFilters] = useState<EntryFilters>({});
   const [error, setError] = useState('');
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
-  const [initialLoad, setInitialLoad] = useState(true);
 
-  const loadEntries = async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const data = await fetchEntries(filters);
-      setEntries(data);
-      setFilteredEntries(data);
-      // Clear initial load flag after first successful load
-      setInitialLoad(false);
-    } catch (error: any) {
-      console.error('Failed to fetch entries:', error);
-      // Only show error if it's not the initial load with no entries
-      // This prevents showing the error when the user first opens the app
-      if (!initialLoad) {
-        setError('Oops, we couldn\'t load your memories! Check your network and try again.');
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Load entries on initial render and when filters change
+  // Initialize filtered entries with all entries
   useEffect(() => {
-    loadEntries();
-  }, [refreshTrigger, JSON.stringify(filters)]);
+    setFilteredEntries(entries);
+    setLoading(false);
+  }, [entries]);
 
   // Apply search filter separately (client-side filtering)
   useEffect(() => {
@@ -79,7 +57,8 @@ const JournalView: React.FC<Props> = ({ onSelectEntry, onOpenSettings }) => {
       });
       
       if (res.ok) {
-        setEntries(prev => prev.filter(e => e.entry_id !== id));
+        // Trigger refresh from parent component
+        onRefresh();
       } else {
         alert("Delete failed.");
       }
@@ -90,13 +69,7 @@ const JournalView: React.FC<Props> = ({ onSelectEntry, onOpenSettings }) => {
   };
 
   const handleEditEntry = (entry: JournalEntry) => {
-    setSelectedEntry(entry);
-    setShowModal(true);
-  };
-
-  const handleEntrySaved = () => {
-    // Trigger a refresh of the entries
-    setRefreshTrigger(prev => prev + 1);
+    onSelectEntry(entry);
   };
 
   // Extract all unique tags from entries
@@ -112,6 +85,21 @@ const JournalView: React.FC<Props> = ({ onSelectEntry, onOpenSettings }) => {
       ...prev,
       [key]: value
     }));
+    
+    // Apply filters client-side for now
+    let filtered = [...entries];
+    
+    if (value) {
+      if (key === 'tag') {
+        filtered = filtered.filter(entry => entry.tags?.includes(value));
+      } else if (key === 'privacy') {
+        filtered = filtered.filter(entry => entry.privacy === value);
+      } else if (key === 'author_id') {
+        filtered = filtered.filter(entry => entry.author_id === value);
+      }
+    }
+    
+    setFilteredEntries(filtered);
   };
 
   // Clear all filters
@@ -119,11 +107,12 @@ const JournalView: React.FC<Props> = ({ onSelectEntry, onOpenSettings }) => {
     setFilters({});
     setSearch('');
     setShowFilters(false);
+    setFilteredEntries(entries);
   };
 
   // Retry loading entries
   const handleRetry = () => {
-    setRefreshTrigger(prev => prev + 1);
+    onRefresh();
   };
 
   return (
@@ -135,14 +124,18 @@ const JournalView: React.FC<Props> = ({ onSelectEntry, onOpenSettings }) => {
             setShowModal(false);
             setSelectedEntry(null);
           }}
-          onEntrySaved={handleEntrySaved}
+          onEntrySaved={() => {
+            setShowModal(false);
+            setSelectedEntry(null);
+            onRefresh();
+          }}
         />
       )}
 
-      <div className="flex justify-center items-center mb-6">
-        <h2 className="text-2xl font-semibold text-clay-brown">Memory Journal</h2>
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-2xl font-semibold text-clay-brown">Your Memories</h2>
         <button
-          className="absolute right-4 text-clay-brown hover:text-black transition"
+          className="text-clay-brown hover:text-black transition"
           aria-label="Settings"
           onClick={onOpenSettings}
         >
@@ -287,7 +280,7 @@ const JournalView: React.FC<Props> = ({ onSelectEntry, onOpenSettings }) => {
       {/* Error message with retry button */}
       {error && (
         <div className="mb-4 p-3 bg-blush-pink bg-opacity-30 text-red-500 text-sm rounded-xl flex justify-between items-center">
-          <span>{error}</span>
+          <span>Oops, we couldn't load your memories! Check your network and try again.</span>
           <button 
             onClick={handleRetry}
             className="text-clay-brown hover:text-black text-xs font-medium"
@@ -328,10 +321,7 @@ const JournalView: React.FC<Props> = ({ onSelectEntry, onOpenSettings }) => {
 
       {/* New memory button - using clay-brown for better visibility */}
       <button
-        onClick={() => {
-          setSelectedEntry(null);
-          setShowModal(true);
-        }}
+        onClick={() => onSelectEntry(null)}
         className="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-clay-brown hover:bg-blush-pink text-white rounded-full w-14 h-14 shadow-md flex items-center justify-center text-2xl transition-colors"
         title="New Memory"
       >
