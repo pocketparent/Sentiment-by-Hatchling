@@ -4,82 +4,227 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL
   ? `${import.meta.env.VITE_API_BASE_URL}/entry`
   : '/api/entry';
 
-export async function fetchEntries(): Promise<JournalEntry[]> {
-  const response = await fetch(API_BASE);
-  if (!response.ok) throw new Error('Failed to fetch journal entries');
-  const data = await response.json();
-  return data.entries;
+export async function fetchEntries(filters = {}): Promise<JournalEntry[]> {
+  // Build query string from filters
+  const queryParams = new URLSearchParams();
+  
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value) {
+      queryParams.append(key, value.toString());
+    }
+  });
+  
+  const queryString = queryParams.toString();
+  const url = queryString ? `${API_BASE}?${queryString}` : API_BASE;
+  
+  try {
+    const response = await fetch(url, {
+      headers: {
+        'X-User-ID': localStorage.getItem('userId') || 'demo'
+      }
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ Error fetching entries:', errorText);
+      throw new Error('Failed to fetch journal entries');
+    }
+    
+    const data = await response.json();
+    return data.entries;
+  } catch (error) {
+    console.error('❌ Fetch entries error:', error);
+    throw error;
+  }
 }
 
-export async function createEntry(entry: Partial<JournalEntry>) {
-  const formData = new FormData();
-  formData.append('content', entry.content || '');
-  formData.append('author_id', entry.author_id || 'demo'); // ✅ fallback
-  formData.append('date_of_memory', entry.date_of_memory || '');
-  formData.append('privacy', entry.privacy || 'private');
+export async function createEntry(formData: FormData): Promise<JournalEntry> {
+  try {
+    // Ensure required fields are present
+    if (!formData.get('date_of_memory')) {
+      throw new Error('Date of memory is required');
+    }
+    
+    // If no content and no media, throw error
+    if (!formData.get('content') && !formData.has('media')) {
+      throw new Error('Either content or media is required');
+    }
+    
+    // Add author_id if not present
+    if (!formData.get('author_id')) {
+      formData.append('author_id', localStorage.getItem('userId') || 'demo');
+    }
+    
+    // Add source_type if not present
+    if (!formData.get('source_type')) {
+      formData.append('source_type', 'app');
+    }
+    
+    // Set default privacy if not specified
+    if (!formData.get('privacy')) {
+      formData.append('privacy', 'private');
+    }
+    
+    // Debug log
+    console.log('📤 Submitting Entry FormData:');
+    for (const [key, value] of formData.entries()) {
+      console.log(`📦 ${key}:`, value);
+    }
 
-  // ✅ Always submit a "tags" field — even if empty
-  if (entry.tags && entry.tags.length > 0) {
-    entry.tags.forEach(tag => formData.append('tags', tag));
-  } else {
-    formData.append('tags', ''); // triggers AI tagging
+    const response = await fetch(API_BASE, {
+      method: 'POST',
+      body: formData,
+      headers: {
+        'X-User-ID': localStorage.getItem('userId') || 'demo'
+      }
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null) || await response.text();
+      console.error('❌ Server error response:', errorData);
+      throw new Error(typeof errorData === 'object' && errorData.error 
+        ? errorData.error 
+        : 'Failed to create entry');
+    }
+
+    const result = await response.json();
+    console.log('✅ Entry created successfully:', result);
+    return result.entry;
+  } catch (error) {
+    console.error('❌ Create entry error:', error);
+    throw error;
   }
-
-  if (entry.media) {
-    formData.append('media', entry.media);
-  }
-
-  // 🔍 Debug
-  console.log('📤 Submitting FormData:');
-  for (const [key, value] of formData.entries()) {
-    console.log(`📦 ${key}:`, value);
-  }
-
-  const response = await fetch(API_BASE, {
-    method: 'POST',
-    body: formData,
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error('❌ Server error response:', errorText);
-    throw new Error('Failed to create entry');
-  }
-
-  return await response.json();
 }
 
-export async function updateEntry(id: string, entry: Partial<JournalEntry>) {
-  const formData = new FormData();
-  formData.append('content', entry.content || '');
-  formData.append('author_id', entry.author_id || 'demo');
-  formData.append('date_of_memory', entry.date_of_memory || '');
-  formData.append('privacy', entry.privacy || 'private');
+export async function updateEntry(id: string, formData: FormData): Promise<JournalEntry> {
+  try {
+    // Ensure we have an ID
+    if (!id) {
+      throw new Error('Entry ID is required for updates');
+    }
+    
+    // Debug log
+    console.log(`📤 Updating Entry ${id} with FormData:`);
+    for (const [key, value] of formData.entries()) {
+      console.log(`📦 ${key}:`, value);
+    }
 
-  if (entry.tags && entry.tags.length > 0) {
-    entry.tags.forEach(tag => formData.append('tags', tag));
-  } else {
-    formData.append('tags', '');
+    const response = await fetch(`${API_BASE}/${id}`, {
+      method: 'PATCH',
+      body: formData,
+      headers: {
+        'X-User-ID': localStorage.getItem('userId') || 'demo'
+      }
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null) || await response.text();
+      console.error('❌ Server error response:', errorData);
+      throw new Error(typeof errorData === 'object' && errorData.error 
+        ? errorData.error 
+        : 'Failed to update entry');
+    }
+
+    const result = await response.json();
+    console.log('✅ Entry updated successfully:', result);
+    return result.entry;
+  } catch (error) {
+    console.error('❌ Update entry error:', error);
+    throw error;
   }
-
-  if (entry.media) {
-    formData.append('media', entry.media);
-  }
-
-  const response = await fetch(`${API_BASE}/${id}`, {
-    method: 'PATCH',
-    body: formData,
-  });
-
-  if (!response.ok) throw new Error('Failed to update entry');
-  return await response.json();
 }
 
-export async function deleteEntry(id: string) {
-  const response = await fetch(`${API_BASE}/${id}`, {
-    method: 'DELETE',
-  });
+export async function deleteEntry(id: string): Promise<{ success: boolean }> {
+  try {
+    if (!id) {
+      throw new Error('Entry ID is required for deletion');
+    }
+    
+    console.log(`🗑️ Deleting entry ${id}`);
+    
+    const response = await fetch(`${API_BASE}/${id}`, {
+      method: 'DELETE',
+      headers: {
+        'X-User-ID': localStorage.getItem('userId') || 'demo'
+      }
+    });
 
-  if (!response.ok) throw new Error('Failed to delete entry');
-  return await response.json();
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null) || await response.text();
+      console.error('❌ Server error response:', errorData);
+      throw new Error(typeof errorData === 'object' && errorData.error 
+        ? errorData.error 
+        : 'Failed to delete entry');
+    }
+
+    const result = await response.json();
+    console.log('✅ Entry deleted successfully:', result);
+    return { success: true };
+  } catch (error) {
+    console.error('❌ Delete entry error:', error);
+    throw error;
+  }
+}
+
+export async function getEntryById(id: string): Promise<JournalEntry> {
+  try {
+    if (!id) {
+      throw new Error('Entry ID is required');
+    }
+    
+    console.log(`🔍 Fetching entry ${id}`);
+    
+    const response = await fetch(`${API_BASE}/${id}`, {
+      headers: {
+        'X-User-ID': localStorage.getItem('userId') || 'demo'
+      }
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null) || await response.text();
+      console.error('❌ Server error response:', errorData);
+      throw new Error(typeof errorData === 'object' && errorData.error 
+        ? errorData.error 
+        : 'Failed to fetch entry');
+    }
+
+    const result = await response.json();
+    return result.entry;
+  } catch (error) {
+    console.error('❌ Get entry error:', error);
+    throw error;
+  }
+}
+
+export async function generateAITags(content: string): Promise<string[]> {
+  try {
+    if (!content || content.trim().length < 10) {
+      console.log('⚠️ Content too short for AI tag generation');
+      return [];
+    }
+    
+    console.log('🤖 Requesting AI tags for content');
+    
+    const response = await fetch(`${API_BASE}/generate-tags`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-User-ID': localStorage.getItem('userId') || 'demo'
+      },
+      body: JSON.stringify({ content })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null) || await response.text();
+      console.error('❌ AI tag generation failed:', errorData);
+      return [];
+    }
+
+    const result = await response.json();
+    console.log('✅ AI tags generated:', result.tags);
+    return result.tags || [];
+  } catch (error) {
+    console.error('❌ AI tag generation error:', error);
+    return [];
+  }
 }
