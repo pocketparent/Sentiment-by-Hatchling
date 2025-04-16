@@ -1,0 +1,213 @@
+/* App.css */
+.App {
+  text-align: center;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--soft-beige);
+}
+
+.App-header {
+  background-color: var(--soft-beige);
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--clay-brown);
+  border-bottom: 1px solid var(--warm-sand);
+}
+
+.logo-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.App-main {
+  flex: 1;
+  padding: 1rem;
+  background-color: var(--soft-beige);
+  overflow-y: auto;
+}
+
+.memory-title {
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: var(--clay-brown);
+  margin: 1rem 0;
+  text-align: center;
+}
+
+.add-memory-button {
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 50%;
+  background-color: var(--clay-brown);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  border: none;
+  cursor: pointer;
+  transition: transform 0.2s, background-color 0.2s;
+}
+
+.add-memory-button:hover {
+  transform: scale(1.05);
+  background-color: var(--dusty-taupe);
+}
+
+.add-memory-button:active {
+  transform: scale(0.95);
+}
+
+.settings-button {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  background: transparent;
+  border: none;
+  color: var(--clay-brown);
+  font-size: 1.5rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem;
+  border-radius: 50%;
+  transition: background-color 0.2s;
+}
+
+.settings-button:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+.filter-container {
+  margin-bottom: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.search-container {
+  display: flex;
+  align-items: center;
+  background-color: white;
+  border-radius: 0.5rem;
+  padding: 0.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.search-container input {
+  flex: 1;
+  border: none;
+  outline: none;
+  padding: 0.5rem;
+  font-size: 1rem;
+}
+
+.search-icon {
+  color: var(--clay-brown);
+  margin-right: 0.5rem;
+}
+
+.filter-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  background-color: white;
+  border: 1px solid var(--warm-sand);
+  border-radius: 0.5rem;
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.filter-button:hover {
+  background-color: var(--soft-beige);
+}
+
+.filter-panel {
+  background-color: white;
+  border-radius: 0.5rem;
+  padding: 1rem;
+  margin-top: 0.5rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.filter-group {
+  margin-bottom: 1rem;
+}
+
+.filter-group-title {
+  font-weight: bold;
+  margin-bottom: 0.5rem;
+  color: var(--clay-brown);
+}
+
+.filter-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.filter-option {
+  background-color: var(--soft-beige);
+  border-radius: 1rem;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.filter-option.selected {
+  background-color: var(--blush-pink);
+  color: white;
+}
+
+.filter-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.filter-actions button {
+  padding: 0.5rem 1rem;
+  border-radius: 0.25rem;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.filter-actions button.reset {
+  background-color: transparent;
+  border: 1px solid var(--warm-sand);
+}
+
+.filter-actions button.apply {
+  background-color: var(--clay-brown);
+  color: white;
+  border: none;
+}
+
+.entries-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+@media (max-width: 640px) {
+  .entries-container {
+    grid-template-columns: 1fr;
+  }
+}
