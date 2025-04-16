@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Send } from 'lucide-react';
+import apiClient from '../api/apiClient';
 
 const Login: React.FC = () => {
   const [phone, setPhone] = useState('');
@@ -10,14 +11,9 @@ const Login: React.FC = () => {
     e.preventDefault();
     setError('');
     try {
-      const res = await fetch('/api/auth/request-login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone }),
-      });
-      if (!res.ok) throw new Error();
+      await apiClient.post('/api/auth/request-login', { phone });
       setSubmitted(true);
-    } catch {
+    } catch (err) {
       setError('Something went wrong. Please try again.');
     }
   };

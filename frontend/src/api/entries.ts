@@ -1,41 +1,17 @@
+import apiClient, { createFormDataClient } from './apiClient';
 import { JournalEntry } from '../types';
 import { EntryFilters } from '../types/entry';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL
-  ? `${import.meta.env.VITE_API_BASE_URL}/api/entry`
-  : '/api/entry';
+const API_ENDPOINT = '/api/entry';
 
 export async function fetchEntries(filters: EntryFilters = {}): Promise<JournalEntry[]> {
-  // Build query string from filters
-  const queryParams = new URLSearchParams();
-  
-  Object.entries(filters).forEach(([key, value]) => {
-    if (value) {
-      queryParams.append(key, value.toString());
-    }
-  });
-  
-  const queryString = queryParams.toString();
-  const url = queryString ? `${API_BASE}?${queryString}` : API_BASE;
-  
   try {
-    console.log(`🔍 Fetching entries from: ${url}`);
+    console.log(`🔍 Fetching entries with filters:`, filters);
     
-    const response = await fetch(url, {
-      headers: {
-        'X-User-ID': localStorage.getItem('userId') || 'demo'
-      }
-    });
+    const response = await apiClient.get(API_ENDPOINT, { params: filters });
     
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('❌ Error fetching entries:', errorText);
-      throw new Error('Failed to fetch journal entries');
-    }
-    
-    const data = await response.json();
-    console.log(`✅ Fetched ${data.entries?.length || 0} entries`);
-    return data.entries || [];
+    console.log(`✅ Fetched ${response.data.entries?.length || 0} entries`);
+    return response.data.entries || [];
   } catch (error) {
     console.error('❌ Fetch entries error:', error);
     // Return empty array instead of throwing to prevent UI breakage
@@ -76,26 +52,12 @@ export async function createEntry(formData: FormData): Promise<JournalEntry> {
       console.log(`📦 ${key}:`, value);
     }
 
-    console.log(`🔍 Posting to: ${API_BASE}`);
-    const response = await fetch(API_BASE, {
-      method: 'POST',
-      body: formData,
-      headers: {
-        'X-User-ID': localStorage.getItem('userId') || 'demo'
-      }
-    });
+    // Use the form data specific client
+    const formClient = createFormDataClient();
+    const response = await formClient.post(API_ENDPOINT, formData);
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => null) || await response.text();
-      console.error('❌ Server error response:', errorData);
-      throw new Error(typeof errorData === 'object' && errorData.error 
-        ? errorData.error 
-        : 'Failed to create entry');
-    }
-
-    const result = await response.json();
-    console.log('✅ Entry created successfully:', result);
-    return result.entry || result; // Handle both response formats
+    console.log('✅ Entry created successfully:', response.data);
+    return response.data.entry || response.data; // Handle both response formats
   } catch (error) {
     console.error('❌ Create entry error:', error);
     throw error;
@@ -115,25 +77,12 @@ export async function updateEntry(id: string, formData: FormData): Promise<Journ
       console.log(`📦 ${key}:`, value);
     }
 
-    const response = await fetch(`${API_BASE}/${id}`, {
-      method: 'PATCH',
-      body: formData,
-      headers: {
-        'X-User-ID': localStorage.getItem('userId') || 'demo'
-      }
-    });
+    // Use the form data specific client
+    const formClient = createFormDataClient();
+    const response = await formClient.patch(`${API_ENDPOINT}/${id}`, formData);
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => null) || await response.text();
-      console.error('❌ Server error response:', errorData);
-      throw new Error(typeof errorData === 'object' && errorData.error 
-        ? errorData.error 
-        : 'Failed to update entry');
-    }
-
-    const result = await response.json();
-    console.log('✅ Entry updated successfully:', result);
-    return result.entry || result; // Handle both response formats
+    console.log('✅ Entry updated successfully:', response.data);
+    return response.data.entry || response.data; // Handle both response formats
   } catch (error) {
     console.error('❌ Update entry error:', error);
     throw error;
@@ -148,23 +97,9 @@ export async function deleteEntry(id: string): Promise<{ success: boolean }> {
     
     console.log(`🗑️ Deleting entry ${id}`);
     
-    const response = await fetch(`${API_BASE}/${id}`, {
-      method: 'DELETE',
-      headers: {
-        'X-User-ID': localStorage.getItem('userId') || 'demo'
-      }
-    });
+    await apiClient.delete(`${API_ENDPOINT}/${id}`);
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => null) || await response.text();
-      console.error('❌ Server error response:', errorData);
-      throw new Error(typeof errorData === 'object' && errorData.error 
-        ? errorData.error 
-        : 'Failed to delete entry');
-    }
-
-    const result = await response.json();
-    console.log('✅ Entry deleted successfully:', result);
+    console.log('✅ Entry deleted successfully');
     return { success: true };
   } catch (error) {
     console.error('❌ Delete entry error:', error);
@@ -180,22 +115,9 @@ export async function getEntryById(id: string): Promise<JournalEntry> {
     
     console.log(`🔍 Fetching entry ${id}`);
     
-    const response = await fetch(`${API_BASE}/${id}`, {
-      headers: {
-        'X-User-ID': localStorage.getItem('userId') || 'demo'
-      }
-    });
+    const response = await apiClient.get(`${API_ENDPOINT}/${id}`);
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => null) || await response.text();
-      console.error('❌ Server error response:', errorData);
-      throw new Error(typeof errorData === 'object' && errorData.error 
-        ? errorData.error 
-        : 'Failed to fetch entry');
-    }
-
-    const result = await response.json();
-    return result.entry || result; // Handle both response formats
+    return response.data.entry || response.data; // Handle both response formats
   } catch (error) {
     console.error('❌ Get entry error:', error);
     throw error;
@@ -213,22 +135,10 @@ export async function generateAITags(content: string): Promise<string[]> {
     
     // Try to use the backend endpoint
     try {
-      const response = await fetch(`${API_BASE}/generate-tags`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-User-ID': localStorage.getItem('userId') || 'demo'
-        },
-        body: JSON.stringify({ content })
-      });
+      const response = await apiClient.post(`${API_ENDPOINT}/generate-tags`, { content });
 
-      if (!response.ok) {
-        throw new Error('API endpoint returned an error');
-      }
-
-      const result = await response.json();
-      console.log('✅ AI tags generated from API:', result.tags);
-      return result.tags || [];
+      console.log('✅ AI tags generated from API:', response.data.tags);
+      return response.data.tags || [];
     } catch (apiError) {
       console.error('❌ API tag generation failed, using fallback:', apiError);
       
