@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { useMediaUpload } from '../api/media';
 import { generateAITags } from '../api/entries';
 
 interface AITagGeneratorProps {
@@ -16,6 +15,7 @@ const AITagGenerator: React.FC<AITagGeneratorProps> = ({
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [generatedTags, setGeneratedTags] = useState<string[]>([]);
 
   // Generate tags based on content
   const handleGenerateTags = async () => {
@@ -27,17 +27,22 @@ const AITagGenerator: React.FC<AITagGeneratorProps> = ({
     setIsGenerating(true);
     setError(null);
     setSuccess(false);
+    setGeneratedTags([]);
     
     try {
-      const generatedTags = await generateAITags(content);
-      if (generatedTags.length > 0) {
+      console.log("Generating AI tags for content:", content.substring(0, 50) + "...");
+      const tags = await generateAITags(content);
+      console.log("Generated tags:", tags);
+      
+      if (tags.length > 0) {
         // Filter out tags that already exist
-        const newTags = generatedTags.filter(tag => !existingTags.includes(tag));
+        const newTags = tags.filter(tag => !existingTags.includes(tag));
+        setGeneratedTags(newTags);
         onTagsGenerated(newTags);
         setSuccess(true);
         
-        // Reset success message after 3 seconds
-        setTimeout(() => setSuccess(false), 3000);
+        // Reset success message after 5 seconds
+        setTimeout(() => setSuccess(false), 5000);
       } else {
         setError('Could not generate tags. Please try again or add them manually.');
       }
@@ -50,12 +55,12 @@ const AITagGenerator: React.FC<AITagGeneratorProps> = ({
   };
 
   return (
-    <div>
+    <div className="mb-4">
       <button
         type="button"
         onClick={handleGenerateTags}
         disabled={isGenerating || content.trim().length < 10}
-        className={`text-sm flex items-center ${
+        className={`text-sm flex items-center mb-2 ${
           isGenerating || content.trim().length < 10 
             ? 'text-dusty-taupe opacity-50 cursor-not-allowed' 
             : 'text-clay-brown hover:text-black transition-colors'
@@ -75,11 +80,23 @@ const AITagGenerator: React.FC<AITagGeneratorProps> = ({
       </button>
       
       {error && (
-        <p className="text-red-500 text-xs mt-1">{error}</p>
+        <p className="text-red-500 text-xs mt-1 mb-2">{error}</p>
       )}
       
       {success && (
-        <p className="text-green-600 text-xs mt-1">Tags generated successfully!</p>
+        <div className="mt-2 mb-3">
+          <p className="text-green-600 text-xs mb-2">Tags generated successfully!</p>
+          <div className="flex flex-wrap gap-1">
+            {generatedTags.map((tag, index) => (
+              <span 
+                key={index} 
+                className="bg-blush-pink bg-opacity-20 text-clay-brown text-xs px-2 py-1 rounded-full"
+              >
+                {tag}
+              </span>
+            ))}
+          </div>
+        </div>
       )}
     </div>
   );

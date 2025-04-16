@@ -25,6 +25,7 @@ const JournalView: React.FC<Props> = ({ entries, onSelectEntry, onOpenSettings, 
 
   // Initialize filtered entries with all entries
   useEffect(() => {
+    console.log("Entries received in JournalView:", entries);
     setFilteredEntries(entries);
     setLoading(false);
   }, [entries]);
@@ -132,10 +133,10 @@ const JournalView: React.FC<Props> = ({ entries, onSelectEntry, onOpenSettings, 
         />
       )}
 
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex justify-center items-center mb-6">
         <h2 className="text-2xl font-semibold text-clay-brown">Your Memories</h2>
         <button
-          className="text-clay-brown hover:text-black transition"
+          className="absolute right-4 text-clay-brown hover:text-black transition"
           aria-label="Settings"
           onClick={onOpenSettings}
         >
@@ -289,6 +290,12 @@ const JournalView: React.FC<Props> = ({ entries, onSelectEntry, onOpenSettings, 
           </button>
         </div>
       )}
+
+      {/* Debug info - remove in production */}
+      <div className="mb-4 p-2 bg-gray-100 text-xs rounded-xl">
+        <p>Debug: {entries.length} entries available</p>
+        <p>Filtered: {filteredEntries.length} entries shown</p>
+      </div>
 
       {/* Loading state */}
       {loading ? (
