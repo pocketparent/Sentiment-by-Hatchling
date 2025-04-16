@@ -1,154 +1,240 @@
-from openai import OpenAI
 import os
-import tempfile
+import openai
 import logging
 
 # Configure logging
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Initialize OpenAI client
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
-def get_ai_tags(content):
+def get_ai_tags(content, max_tags=5):
     """
-    Generate tags for a journal entry using OpenAI.
+    Generate AI tags for content using OpenAI API.
     
     Args:
-        content: The text content to generate tags for
+        content (str): The text content to generate tags for
+        max_tags (int): Maximum number of tags to return
         
     Returns:
-        List of generated tags
+        list: List of generated tags
     """
     try:
-        logger.info("🔍 Generating AI tags for content")
-        
         # Skip if content is too short
-        if len(content.strip()) < 10:
-            logger.info("Content too short for tag generation")
-            return []
+        if not content or len(content.strip()) < 10:
+            logger.warning("Content too short for AI tag generation")
+            return ["memory"]
             
-        response = client.chat.completions.create(
-            model="gpt-4",
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You are a helpful assistant who extracts 3-5 short descriptive tags from a journal entry. Focus on key themes, emotions, activities, or milestones. Return only a comma-separated list of tags, no explanation."
-                },
-                {
-                    "role": "user",
-                    "content": f"Please provide tags for this memory:\n\n{content}"
-                }
-            ],
-            max_tokens=50,
-            temperature=0.5
-        )
-        raw = response.choices[0].message.content
-        logger.info(f"🔁 Raw response from OpenAI: {raw}")
-
-        # Process tags: strip whitespace, remove # symbols, lowercase
-        tags = [tag.strip("#, ").lower() for tag in raw.split(",") if tag.strip()]
+        logger.info("🤖 Generating AI tags for content")
         
-        # Limit to 5 tags maximum
-        tags = tags[:5]
+        # Check if OpenAI API key is configured
+        api_key = os.environ.get("OPENAI_API_KEY")
+        if not api_key:
+            logger.warning("OpenAI API key not configured, using default tags")
+            return ["memory", "moment", "experience"]
+            
+        # Call OpenAI API
+        openai.api_key = api_key
         
-        logger.info(f"✅ Generated tags: {tags}")
-        return tags
-        
+        try:
+            response = openai.ChatCompletion.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You are a helpful assistant that generates relevant tags for journal entries. Generate 3-5 single-word tags that capture the essence of the content. Return only the tags as a comma-separated list without any additional text."
+                    },
+                    {
+                        "role": "user",
+                        "content": content
+                    }
+                ],
+                max_tokens=50,
+                temperature=0.7,
+            )
+            
+            # Process the response to extract tags
+            tag_text = response.choices[0].message["content"].strip()
+            tags = [tag.strip().lower() for tag in tag_text.split(',')]
+            tags = [tag for tag in tags if tag and len(tag) < 20][:max_tags]  # Limit to max_tags
+            
+            logger.info(f"✅ AI tags generated: {tags}")
+            return tags
+            
+        except Exception as e:
+            logger.error(f"❌ OpenAI API call failed: {str(e)}")
+            # Fallback to content-based tag generation
+            return generate_content_based_tags(content, max_tags)
+            
     except Exception as e:
-        logger.error(f"❌ AI tag generation failed: {str(e)}")
-        # Return empty list rather than failing the request
-        return []
+        logger.error(f"❌ Error in get_ai_tags: {str(e)}")
+        return ["memory", "moment"]
 
-
-def transcribe_audio(file_stream):
+def generate_content_based_tags(content, max_tags=5):
     """
-    Transcribe audio content using OpenAI Whisper.
+    Generate tags based on content keywords as a fallback.
     
     Args:
-        file_stream: The audio file stream to transcribe
+        content (str): The text content to generate tags for
+        max_tags (int): Maximum number of tags to return
         
     Returns:
-        Transcribed text or empty string if failed
+        list: List of generated tags
     """
-    temp_file_path = None
-    try:
-        # Create temporary file
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as temp_file:
-            temp_file.write(file_stream.read())
-            temp_file_path = temp_file.name
-            
-        logger.info(f"Created temporary file for transcription: {temp_file_path}")
+    logger.info("⚠️ Using content-based tag generation as fallback")
+    
+    # Simple content-based tag generation
+    content_lower = content.lower()
+    generated_tags = []
+    
+    # Check for common themes in content
+    tag_mappings = {
+        'first': ['milestone', 'first'],
+        'smile': ['milestone', 'emotion'],
+        'laugh': ['joy', 'emotion'],
+        'walk': ['milestone', 'development'],
+        'crawl': ['milestone', 'development'],
+        'talk': ['milestone', 'development', 'communication'],
+        'eat': ['food', 'nutrition'],
+        'sleep': ['rest', 'routine'],
+        'play': ['activity', 'fun'],
+        'friend': ['social', 'relationship'],
+        'school': ['education', 'learning'],
+        'doctor': ['health', 'checkup'],
+        'sick': ['health', 'care'],
+        'birthday': ['celebration', 'milestone'],
+        'holiday': ['celebration', 'family'],
+        'trip': ['travel', 'adventure'],
+        'park': ['outdoor', 'activity'],
+        'swim': ['activity', 'skill'],
+        'read': ['learning', 'development'],
+        'sing': ['music', 'expression'],
+        'dance': ['movement', 'expression'],
+        'draw': ['art', 'creativity'],
+        'paint': ['art', 'creativity'],
+        'build': ['creativity', 'skill'],
+        'help': ['responsibility', 'growth'],
+        'share': ['social', 'development'],
+        'love': ['emotion', 'relationship'],
+        'happy': ['emotion', 'joy'],
+        'sad': ['emotion', 'feeling'],
+        'angry': ['emotion', 'feeling'],
+        'scared': ['emotion', 'feeling'],
+        'proud': ['emotion', 'achievement'],
+        'excited': ['emotion', 'anticipation']
+    }
+    
+    # Check content for keywords and add corresponding tags
+    for keyword, tags in tag_mappings.items():
+        if keyword in content_lower:
+            for tag in tags:
+                if tag not in generated_tags:
+                    generated_tags.append(tag)
+    
+    # If no specific tags found, add some general ones
+    if not generated_tags:
+        generated_tags.append('moment')
+        generated_tags.append('memory')
+    
+    # Limit to max_tags
+    limited_tags = generated_tags[:max_tags]
+    logger.info(f"✅ Content-based tags generated: {limited_tags}")
+    
+    return limited_tags
 
-        # Transcribe using OpenAI Whisper
-        with open(temp_file_path, "rb") as audio_file:
-            transcript = client.audio.transcriptions.create(
+def transcribe_audio(audio_file):
+    """
+    Transcribe audio file using OpenAI Whisper API.
+    
+    Args:
+        audio_file: File-like object containing audio data
+        
+    Returns:
+        str: Transcribed text
+    """
+    try:
+        logger.info("🎤 Transcribing audio file")
+        
+        # Check if OpenAI API key is configured
+        api_key = os.environ.get("OPENAI_API_KEY")
+        if not api_key:
+            logger.warning("OpenAI API key not configured, skipping transcription")
+            return "Audio transcription unavailable"
+            
+        # Call OpenAI API
+        openai.api_key = api_key
+        
+        try:
+            response = openai.Audio.transcribe(
                 model="whisper-1",
                 file=audio_file
             )
             
-            transcribed_text = transcript.text.strip()
-            logger.info(f"Successfully transcribed audio: {transcribed_text[:50]}...")
-            return transcribed_text
+            transcription = response.get("text", "")
+            logger.info(f"✅ Audio transcribed: {transcription[:50]}...")
+            return transcription
+            
+        except Exception as e:
+            logger.error(f"❌ OpenAI transcription failed: {str(e)}")
+            return "Audio transcription failed"
             
     except Exception as e:
-        logger.error(f"❌ Audio transcription failed: {str(e)}")
-        return ""
-        
-    finally:
-        # Clean up temporary file
-        if temp_file_path and os.path.exists(temp_file_path):
-            os.remove(temp_file_path)
-            logger.info(f"Removed temporary file: {temp_file_path}")
+        logger.error(f"❌ Error in transcribe_audio: {str(e)}")
+        return "Audio transcription error"
 
-def generate_entry_summary(entries, max_entries=5):
+def generate_entry_summary(entry_content, max_length=100):
     """
-    Generate a summary of recent journal entries.
-    Useful for nudges and reminders.
+    Generate a summary of entry content for nudges.
     
     Args:
-        entries: List of entry dictionaries
-        max_entries: Maximum number of entries to include in summary
+        entry_content (str): The full entry content
+        max_length (int): Maximum length of summary
         
     Returns:
-        Summary text
+        str: Summarized content
     """
     try:
-        # Limit to most recent entries
-        recent_entries = entries[:max_entries]
-        
-        if not recent_entries:
-            return "No recent entries found."
+        # If content is already short, return it directly
+        if len(entry_content) <= max_length:
+            return entry_content
             
-        # Create a prompt with recent entries
-        entries_text = ""
-        for i, entry in enumerate(recent_entries):
-            content = entry.get("content", "")
-            date = entry.get("date_of_memory", "unknown date")
-            entries_text += f"Entry {i+1} ({date}): {content[:100]}...\n\n"
+        logger.info("📝 Generating entry summary")
+        
+        # Check if OpenAI API key is configured
+        api_key = os.environ.get("OPENAI_API_KEY")
+        if not api_key:
+            logger.warning("OpenAI API key not configured, using simple summary")
+            # Simple truncation with ellipsis
+            return entry_content[:max_length - 3] + "..."
             
-        prompt = f"Here are the most recent journal entries:\n\n{entries_text}\n\nPlease provide a brief, encouraging summary of these memories."
+        # Call OpenAI API
+        openai.api_key = api_key
         
-        # Generate summary
-        response = client.chat.completions.create(
-            model="gpt-4",
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You are a helpful assistant who summarizes journal entries in a warm, supportive tone. Keep your summary brief and highlight positive aspects or patterns."
-                },
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ],
-            max_tokens=150,
-            temperature=0.7
-        )
-        
-        summary = response.choices[0].message.content.strip()
-        logger.info(f"Generated entry summary: {summary[:50]}...")
-        return summary
-        
+        try:
+            response = openai.ChatCompletion.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": f"Summarize the following journal entry in {max_length} characters or less. Preserve the emotional tone and key details."
+                    },
+                    {
+                        "role": "user",
+                        "content": entry_content
+                    }
+                ],
+                max_tokens=100,
+                temperature=0.7,
+            )
+            
+            summary = response.choices[0].message["content"].strip()
+            logger.info(f"✅ Summary generated: {summary}")
+            return summary
+            
+        except Exception as e:
+            logger.error(f"❌ OpenAI summary generation failed: {str(e)}")
+            # Fallback to simple truncation
+            return entry_content[:max_length - 3] + "..."
+            
     except Exception as e:
-        logger.error(f"❌ Entry summary generation failed: {str(e)}")
-        return "Unable to generate summary at this time."
+        logger.error(f"❌ Error in generate_entry_summary: {str(e)}")
+        return entry_content[:max_length - 3] + "..."
+
