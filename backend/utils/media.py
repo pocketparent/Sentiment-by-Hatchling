@@ -1,36 +1,41 @@
-import os
+from utils.media import download_media_from_url, upload_media_to_firebase
 import requests
-from firebase_admin import storage
-from werkzeug.utils import secure_filename
+import io
+import logging
+import traceback
+from typing import Optional, Dict, Any, BinaryIO
 
-def download_media_from_url(url, local_path=None):
-    """Download media from a URL to a local path"""
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+def download_media_from_url(url: str) -> Optional[BinaryIO]:
+    """
+    Download media from a URL and return as a binary stream.
+    
+    Args:
+        url: The URL to download media from
+        
+    Returns:
+        Binary stream of the media or None if download fails
+    """
     try:
+        logger.info(f"📥 Downloading media from URL: {url}")
+        
         response = requests.get(url, stream=True)
-        response.raise_for_status()
+        response.raise_for_status()  # Raise exception for 4XX/5XX responses
         
-        if not local_path:
-            # Create a temporary file if no path provided
-            filename = secure_filename(os.path.basename(url.split('?')[0]))
-            local_path = os.path.join('/tmp', filename)
+        # Create a binary stream from the response content
+        media_stream = io.BytesIO(response.content)
         
-        with open(local_path, 'wb') as f:
-            for chunk in response.iter_content(chunk_size=8192):
-                f.write(chunk)
+        logger.info(f"✅ Media downloaded successfully: {len(response.content)} bytes")
+        return media_stream
         
-        return local_path
-    except Exception as e:
-        print(f"Error downloading media: {e}")
+    except requests.RequestException as e:
+        logger.error(f"❌ Error downloading media: {str(e)}")
+        logger.error(traceback.format_exc())
         return None
-
-def upload_media_to_firebase(file_path, destination_path):
-    """Upload a file to Firebase Storage"""
-    try:
-        bucket = storage.bucket()
-        blob = bucket.blob(destination_path)
-        blob.upload_from_filename(file_path)
-        blob.make_public()
-        return blob.public_url
     except Exception as e:
-        print(f"Error uploading to Firebase: {e}")
+        logger.error(f"❌ Unexpected error downloading media: {str(e)}")
+        logger.error(traceback.format_exc())
         return None
