@@ -1,102 +1,52 @@
 import React, { useState, useEffect } from 'react';
 import { JournalEntry } from '../types';
 import { EntryFilters } from '../types/entry';
-import { fetchEntries } from '../api/entries';
+import { fetchEntries, deleteEntry } from '../api/entries';
 import EntryCard from './EntryCard';
 import EmptyState from './EmptyState';
 import { Settings, Trash, Search, Tag, Filter, Calendar, User, Eye } from 'lucide-react';
-import EntryModal from './EntryModal';
 
 interface Props {
-  onSelectEntry: (entry: JournalEntry | null) => void;
-  onOpenSettings: () => void;
+  entries: JournalEntry[];
+  isLoading: boolean;
+  error: string | null;
+  onRetry: () => void;
+  onSearch: (term: string) => void;
+  onTagFilter: (tags: string[]) => void;
+  onPrivacyFilter: (privacy: string | null) => void;
+  onAddEntry: () => void;
+  onEditEntry: (entry: JournalEntry) => void;
+  onDeleteEntry: (entryId: string) => void;
 }
 
-const JournalView: React.FC<Props> = ({ onSelectEntry, onOpenSettings }) => {
-  const [entries, setEntries] = useState<JournalEntry[]>([]);
-  const [filteredEntries, setFilteredEntries] = useState<JournalEntry[]>([]);
-  const [loading, setLoading] = useState(true);
+const JournalView: React.FC<Props> = ({ 
+  entries, 
+  isLoading, 
+  error, 
+  onRetry, 
+  onSearch, 
+  onTagFilter, 
+  onPrivacyFilter, 
+  onAddEntry, 
+  onEditEntry,
+  onDeleteEntry
+}) => {
   const [search, setSearch] = useState('');
-  const [showModal, setShowModal] = useState(false);
-  const [selectedEntry, setSelectedEntry] = useState<JournalEntry | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [filters, setFilters] = useState<EntryFilters>({});
-  const [error, setError] = useState('');
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
-  const [initialLoad, setInitialLoad] = useState(true);
-
-  const loadEntries = async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const data = await fetchEntries(filters);
-      setEntries(data);
-      setFilteredEntries(data);
-      // Clear initial load flag after first successful load
-      setInitialLoad(false);
-    } catch (error: any) {
-      console.error('Failed to fetch entries:', error);
-      // Only show error if it's not the initial load with no entries
-      // This prevents showing the error when the user first opens the app
-      if (!initialLoad) {
-        setError('Oops, we couldn\'t load your memories! Check your network and try again.');
-      }
-    } finally {
-      setLoading(false);
-    }
+  
+  // Handle search input change
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const term = e.target.value;
+    setSearch(term);
+    onSearch(term);
   };
 
-  // Load entries on initial render and when filters change
-  useEffect(() => {
-    loadEntries();
-  }, [refreshTrigger, JSON.stringify(filters)]);
-
-  // Apply search filter separately (client-side filtering)
-  useEffect(() => {
-    if (search.trim() === '') {
-      setFilteredEntries(entries);
-    } else {
-      const lowerSearch = search.toLowerCase();
-      setFilteredEntries(
-        entries.filter((entry) =>
-          entry.content?.toLowerCase().includes(lowerSearch) ||
-          entry.tags?.some(tag => tag.toLowerCase().includes(lowerSearch))
-        )
-      );
-    }
-  }, [search, entries]);
-
+  // Handle delete confirmation
   const handleDelete = async (id: string) => {
     const confirmed = window.confirm("Delete this memory?");
     if (!confirmed) return;
-
-    try {
-      const res = await fetch(`/api/entry/${id}`, { 
-        method: "DELETE",
-        headers: {
-          'X-User-ID': localStorage.getItem('userId') || 'demo'
-        }
-      });
-      
-      if (res.ok) {
-        setEntries(prev => prev.filter(e => e.entry_id !== id));
-      } else {
-        alert("Delete failed.");
-      }
-    } catch (err) {
-      console.error(err);
-      alert("Error deleting memory.");
-    }
-  };
-
-  const handleEditEntry = (entry: JournalEntry) => {
-    setSelectedEntry(entry);
-    setShowModal(true);
-  };
-
-  const handleEntrySaved = () => {
-    // Trigger a refresh of the entries
-    setRefreshTrigger(prev => prev + 1);
+    onDeleteEntry(id);
   };
 
   // Extract all unique tags from entries
@@ -108,10 +58,18 @@ const JournalView: React.FC<Props> = ({ onSelectEntry, onOpenSettings }) => {
 
   // Update a specific filter
   const updateFilter = (key: keyof EntryFilters, value: string | undefined) => {
-    setFilters(prev => ({
-      ...prev,
+    const newFilters = {
+      ...filters,
       [key]: value
-    }));
+    };
+    setFilters(newFilters);
+    
+    // Update parent component filters
+    if (key === 'tag') {
+      onTagFilter(value ? [value] : []);
+    } else if (key === 'privacy') {
+      onPrivacyFilter(value || null);
+    }
   };
 
   // Clear all filters
@@ -119,32 +77,19 @@ const JournalView: React.FC<Props> = ({ onSelectEntry, onOpenSettings }) => {
     setFilters({});
     setSearch('');
     setShowFilters(false);
-  };
-
-  // Retry loading entries
-  const handleRetry = () => {
-    setRefreshTrigger(prev => prev + 1);
+    onSearch('');
+    onTagFilter([]);
+    onPrivacyFilter(null);
   };
 
   return (
     <div className="relative px-4 py-6 max-w-2xl mx-auto pb-24 bg-soft-beige min-h-screen">
-      {showModal && (
-        <EntryModal
-          entry={selectedEntry}
-          onClose={() => {
-            setShowModal(false);
-            setSelectedEntry(null);
-          }}
-          onEntrySaved={handleEntrySaved}
-        />
-      )}
-
       <div className="flex justify-center items-center mb-6">
         <h2 className="text-2xl font-semibold text-clay-brown">Memory Journal</h2>
         <button
           className="absolute right-4 text-clay-brown hover:text-black transition"
           aria-label="Settings"
-          onClick={onOpenSettings}
+          onClick={() => {}}
         >
           <Settings size={20} />
         </button>
@@ -160,7 +105,7 @@ const JournalView: React.FC<Props> = ({ onSelectEntry, onOpenSettings }) => {
           className="w-full rounded-2xl border border-warm-sand px-10 py-2 text-sm placeholder-dusty-taupe bg-white focus:border-blush-pink focus:ring-1 focus:ring-blush-pink"
           placeholder="Search memories..."
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={handleSearchChange}
         />
         <button 
           className={`absolute inset-y-0 right-3 flex items-center ${
@@ -289,7 +234,7 @@ const JournalView: React.FC<Props> = ({ onSelectEntry, onOpenSettings }) => {
         <div className="mb-4 p-3 bg-blush-pink bg-opacity-30 text-red-500 text-sm rounded-xl flex justify-between items-center">
           <span>{error}</span>
           <button 
-            onClick={handleRetry}
+            onClick={onRetry}
             className="text-clay-brown hover:text-black text-xs font-medium"
           >
             Retry
@@ -298,21 +243,21 @@ const JournalView: React.FC<Props> = ({ onSelectEntry, onOpenSettings }) => {
       )}
 
       {/* Loading state */}
-      {loading ? (
+      {isLoading ? (
         <div className="flex justify-center items-center h-40">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-clay-brown"></div>
         </div>
-      ) : filteredEntries.length === 0 ? (
+      ) : entries.length === 0 ? (
         <EmptyState />
       ) : (
         <div className="space-y-4">
-          {filteredEntries.map((entry) => (
+          {entries.map((entry) => (
             <div
               key={entry.entry_id}
               className="relative bg-white rounded-2xl p-4 shadow-sm border border-warm-sand hover:border-blush-pink transition-colors"
             >
-              <div className="flex-grow cursor-pointer" onClick={() => handleEditEntry(entry)}>
-                <EntryCard entry={entry} onClick={() => handleEditEntry(entry)} />
+              <div className="flex-grow cursor-pointer" onClick={() => onEditEntry(entry)}>
+                <EntryCard entry={entry} onClick={() => onEditEntry(entry)} />
               </div>
               <button
                 onClick={() => handleDelete(entry.entry_id)}
@@ -328,10 +273,7 @@ const JournalView: React.FC<Props> = ({ onSelectEntry, onOpenSettings }) => {
 
       {/* New memory button - using clay-brown for better visibility */}
       <button
-        onClick={() => {
-          setSelectedEntry(null);
-          setShowModal(true);
-        }}
+        onClick={onAddEntry}
         className="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-clay-brown hover:bg-blush-pink text-white rounded-full w-14 h-14 shadow-md flex items-center justify-center text-2xl transition-colors"
         title="New Memory"
       >

@@ -3,12 +3,13 @@ import './App.css';
 import JournalView from './components/JournalView';
 import EntryModal from './components/EntryModal';
 import Settings from './components/Settings';
-import { fetchEntries } from './api/entries';
-import { Entry } from './types/entry';
+import { fetchEntries, createEntry, updateEntry, deleteEntry } from './api/entries';
+import { JournalEntry } from './types';
+import { EntryFilters } from './types/entry';
 
 function App() {
-  const [entries, setEntries] = useState<Entry[]>([]);
-  const [filteredEntries, setFilteredEntries] = useState<Entry[]>([]);
+  const [entries, setEntries] = useState<JournalEntry[]>([]);
+  const [filteredEntries, setFilteredEntries] = useState<JournalEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showEntryModal, setShowEntryModal] = useState(false);
@@ -16,11 +17,13 @@ function App() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [selectedPrivacy, setSelectedPrivacy] = useState<string | null>(null);
+  const [selectedEntry, setSelectedEntry] = useState<JournalEntry | null>(null);
+  const [filters, setFilters] = useState<EntryFilters>({});
 
-  // Load entries when component mounts
+  // Load entries when component mounts or filters change
   useEffect(() => {
     loadEntries();
-  }, []);
+  }, [JSON.stringify(filters)]);
 
   // Filter entries when search term, tags, or privacy changes
   useEffect(() => {
@@ -31,18 +34,14 @@ function App() {
     setIsLoading(true);
     setError(null);
     try {
-      // Use mock data if API fails
-      try {
-        const fetchedEntries = await fetchEntries();
-        setEntries(fetchedEntries);
-      } catch (err) {
-        console.error('Error fetching entries from API, using mock data:', err);
-        // Mock data as fallback
-        setEntries([]);
-      }
+      console.log('Loading entries with filters:', filters);
+      const fetchedEntries = await fetchEntries(filters);
+      console.log('Fetched entries:', fetchedEntries);
+      setEntries(fetchedEntries);
     } catch (err) {
-      console.error('Error loading entries:', err);
+      console.error('Error fetching entries from API:', err);
       setError('Failed to load memories. Please try again.');
+      // Keep existing entries instead of clearing them
     } finally {
       setIsLoading(false);
     }
@@ -74,12 +73,12 @@ function App() {
     setFilteredEntries(filtered);
   };
 
-  const handleAddEntry = (newEntry: Entry) => {
+  const handleAddEntry = (newEntry: JournalEntry) => {
     setEntries(prevEntries => [newEntry, ...prevEntries]);
     setShowEntryModal(false);
   };
 
-  const handleUpdateEntry = (updatedEntry: Entry) => {
+  const handleUpdateEntry = (updatedEntry: JournalEntry) => {
     setEntries(prevEntries => 
       prevEntries.map(entry => 
         entry.entry_id === updatedEntry.entry_id ? updatedEntry : entry
@@ -87,10 +86,16 @@ function App() {
     );
   };
 
-  const handleDeleteEntry = (entryId: string) => {
-    setEntries(prevEntries => 
-      prevEntries.filter(entry => entry.entry_id !== entryId)
-    );
+  const handleDeleteEntry = async (entryId: string) => {
+    try {
+      await deleteEntry(entryId);
+      setEntries(prevEntries => 
+        prevEntries.filter(entry => entry.entry_id !== entryId)
+      );
+    } catch (error) {
+      console.error('Failed to delete entry:', error);
+      setError('Failed to delete entry. Please try again.');
+    }
   };
 
   const handleSearch = (term: string) => {
@@ -99,14 +104,27 @@ function App() {
 
   const handleTagFilter = (tags: string[]) => {
     setSelectedTags(tags);
+    setFilters(prev => ({
+      ...prev,
+      tag: tags.length === 1 ? tags[0] : undefined
+    }));
   };
 
   const handlePrivacyFilter = (privacy: string | null) => {
     setSelectedPrivacy(privacy);
+    setFilters(prev => ({
+      ...prev,
+      privacy: privacy || undefined
+    }));
   };
 
   const handleRetry = () => {
     loadEntries();
+  };
+
+  const handleEditEntry = (entry: JournalEntry) => {
+    setSelectedEntry(entry);
+    setShowEntryModal(true);
   };
 
   return (
@@ -134,17 +152,30 @@ function App() {
           onSearch={handleSearch}
           onTagFilter={handleTagFilter}
           onPrivacyFilter={handlePrivacyFilter}
-          onAddEntry={() => setShowEntryModal(true)}
-          onEditEntry={(entry) => {
-            // Logic for editing entry
+          onAddEntry={() => {
+            setSelectedEntry(null);
+            setShowEntryModal(true);
           }}
+          onEditEntry={handleEditEntry}
+          onDeleteEntry={handleDeleteEntry}
         />
       </main>
 
       {showEntryModal && (
         <EntryModal 
-          onClose={() => setShowEntryModal(false)}
-          onSave={handleAddEntry}
+          entry={selectedEntry}
+          onClose={() => {
+            setShowEntryModal(false);
+            setSelectedEntry(null);
+          }}
+          onEntrySaved={(entry) => {
+            if (selectedEntry) {
+              handleUpdateEntry(entry);
+            } else {
+              handleAddEntry(entry);
+            }
+            setShowEntryModal(false);
+          }}
         />
       )}
 
@@ -158,4 +189,3 @@ function App() {
 }
 
 export default App;
-

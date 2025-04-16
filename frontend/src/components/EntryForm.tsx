@@ -6,7 +6,7 @@ import { createEntry, updateEntry, generateAITags } from '../api/entries';
 interface EntryFormProps {
   entry: JournalEntry | null;
   onClose: () => void;
-  onEntrySaved: () => void;
+  onEntrySaved: (entry: JournalEntry) => void;
 }
 
 const EntryForm: React.FC<EntryFormProps> = ({ entry, onClose, onEntrySaved }) => {
@@ -163,14 +163,16 @@ const EntryForm: React.FC<EntryFormProps> = ({ entry, onClose, onEntrySaved }) =
         formData.append('media', media);
       }
 
+      let savedEntry: JournalEntry;
+      
       if (entry?.entry_id) {
-        await updateEntry(entry.entry_id, formData);
+        savedEntry = await updateEntry(entry.entry_id, formData);
       } else {
-        await createEntry(formData);
+        savedEntry = await createEntry(formData);
       }
 
-      onEntrySaved();
-      onClose();
+      // Pass the saved entry back to the parent component
+      onEntrySaved(savedEntry);
     } catch (err: any) {
       console.error('🔥 Entry save failed:', err);
       setError(err.message || 'Something went wrong. Please try again.');

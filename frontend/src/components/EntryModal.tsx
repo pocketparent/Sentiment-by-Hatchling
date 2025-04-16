@@ -5,7 +5,7 @@ import EntryForm from './EntryForm';
 interface EntryModalProps {
   entry: JournalEntry | null;
   onClose: () => void;
-  onEntrySaved: () => void;
+  onEntrySaved: (entry: JournalEntry) => void;
 }
 
 const EntryModal: React.FC<EntryModalProps> = ({ entry, onClose, onEntrySaved }) => {
@@ -19,6 +19,10 @@ const EntryModal: React.FC<EntryModalProps> = ({ entry, onClose, onEntrySaved })
 
   const handleOverlayClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (e.target === e.currentTarget) onClose();
+  };
+
+  const handleEntrySaved = (savedEntry: JournalEntry) => {
+    onEntrySaved(savedEntry);
   };
 
   return (
@@ -41,7 +45,7 @@ const EntryModal: React.FC<EntryModalProps> = ({ entry, onClose, onEntrySaved })
         <EntryForm 
           entry={entry}
           onClose={onClose}
-          onEntrySaved={onEntrySaved}
+          onEntrySaved={handleEntrySaved}
         />
       </div>
     </div>

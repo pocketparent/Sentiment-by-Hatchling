@@ -1,10 +1,11 @@
 import { JournalEntry } from '../types';
+import { EntryFilters } from '../types/entry';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL
-  ? `${import.meta.env.VITE_API_BASE_URL}/entry`
+  ? `${import.meta.env.VITE_API_BASE_URL}/api/entry`
   : '/api/entry';
 
-export async function fetchEntries(filters = {}): Promise<JournalEntry[]> {
+export async function fetchEntries(filters: EntryFilters = {}): Promise<JournalEntry[]> {
   // Build query string from filters
   const queryParams = new URLSearchParams();
   
@@ -18,6 +19,8 @@ export async function fetchEntries(filters = {}): Promise<JournalEntry[]> {
   const url = queryString ? `${API_BASE}?${queryString}` : API_BASE;
   
   try {
+    console.log(`🔍 Fetching entries from: ${url}`);
+    
     const response = await fetch(url, {
       headers: {
         'X-User-ID': localStorage.getItem('userId') || 'demo'
@@ -31,6 +34,7 @@ export async function fetchEntries(filters = {}): Promise<JournalEntry[]> {
     }
     
     const data = await response.json();
+    console.log(`✅ Fetched ${data.entries?.length || 0} entries`);
     return data.entries || [];
   } catch (error) {
     console.error('❌ Fetch entries error:', error);
@@ -72,6 +76,7 @@ export async function createEntry(formData: FormData): Promise<JournalEntry> {
       console.log(`📦 ${key}:`, value);
     }
 
+    console.log(`🔍 Posting to: ${API_BASE}`);
     const response = await fetch(API_BASE, {
       method: 'POST',
       body: formData,
