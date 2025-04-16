@@ -1,75 +1,64 @@
-import React, { useState, useEffect } from 'react';
+// AITagGenerator.tsx fixes for proper tag generation
+
+import React, { useState } from 'react';
 import { generateAITags } from '../api/entries';
 
 interface AITagGeneratorProps {
   content: string;
   onTagsGenerated: (tags: string[]) => void;
-  existingTags?: string[];
 }
 
-const AITagGenerator: React.FC<AITagGeneratorProps> = ({ 
-  content, 
-  onTagsGenerated,
-  existingTags = []
-}) => {
-  const [isGenerating, setIsGenerating] = useState(false);
+const AITagGenerator: React.FC<AITagGeneratorProps> = ({ content, onTagsGenerated }) => {
+  const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
-  const [generatedTags, setGeneratedTags] = useState<string[]>([]);
+  const [success, setSuccess] = useState<boolean>(false);
 
-  // Generate tags based on content
   const handleGenerateTags = async () => {
-    if (content.trim().length < 10) {
-      setError('Please write more content to generate tags');
+    if (!content || content.trim().length < 10) {
+      setError('Please add more content before generating tags');
       return;
     }
-    
-    setIsGenerating(true);
-    setError(null);
-    setSuccess(false);
-    setGeneratedTags([]);
-    
+
     try {
-      console.log("Generating AI tags for content:", content.substring(0, 50) + "...");
-      const tags = await generateAITags(content);
-      console.log("Generated tags:", tags);
+      setLoading(true);
+      setError(null);
+      setSuccess(false);
       
-      if (tags.length > 0) {
-        // Filter out tags that already exist
-        const newTags = tags.filter(tag => !existingTags.includes(tag));
-        setGeneratedTags(newTags);
-        onTagsGenerated(newTags);
+      const tags = await generateAITags(content);
+      
+      if (tags && tags.length > 0) {
+        onTagsGenerated(tags);
         setSuccess(true);
-        
-        // Reset success message after 5 seconds
-        setTimeout(() => setSuccess(false), 5000);
+        setTimeout(() => setSuccess(false), 3000); // Clear success message after 3 seconds
       } else {
-        setError('Could not generate tags. Please try again or add them manually.');
+        setError('No tags could be generated. Please try again.');
       }
     } catch (err) {
-      setError('Failed to generate tags. Please try again or add them manually.');
-      console.error('Tag generation error:', err);
+      console.error('Error generating tags:', err);
+      setError('Failed to generate tags. Please try again.');
     } finally {
-      setIsGenerating(false);
+      setLoading(false);
     }
   };
 
   return (
-    <div className="mb-4">
+    <div className="ai-tag-generator">
       <button
-        type="button"
         onClick={handleGenerateTags}
-        disabled={isGenerating || content.trim().length < 10}
-        className={`text-sm flex items-center mb-2 ${
-          isGenerating || content.trim().length < 10 
-            ? 'text-dusty-taupe opacity-50 cursor-not-allowed' 
-            : 'text-clay-brown hover:text-black transition-colors'
+        disabled={loading || !content || content.trim().length < 10}
+        className={`flex items-center justify-center px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+          loading 
+            ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+            : 'bg-green-100 text-green-800 hover:bg-green-200'
         }`}
       >
-        {isGenerating ? (
+        {loading ? (
           <>
-            <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-clay-brown mr-2"></div>
-            Generating tags...
+            <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-green-800" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            Generating...
           </>
         ) : (
           <>
@@ -80,22 +69,14 @@ const AITagGenerator: React.FC<AITagGeneratorProps> = ({
       </button>
       
       {error && (
-        <p className="text-red-500 text-xs mt-1 mb-2">{error}</p>
+        <div className="text-red-500 text-sm mt-2">
+          {error}
+        </div>
       )}
       
       {success && (
-        <div className="mt-2 mb-3">
-          <p className="text-green-600 text-xs mb-2">Tags generated successfully!</p>
-          <div className="flex flex-wrap gap-1">
-            {generatedTags.map((tag, index) => (
-              <span 
-                key={index} 
-                className="bg-blush-pink bg-opacity-20 text-clay-brown text-xs px-2 py-1 rounded-full"
-              >
-                {tag}
-              </span>
-            ))}
-          </div>
+        <div className="text-green-600 text-sm mt-2">
+          Tags generated successfully!
         </div>
       )}
     </div>
