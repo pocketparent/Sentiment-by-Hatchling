@@ -342,4 +342,3 @@ const JournalView: React.FC<Props> = ({ onSelectEntry, onOpenSettings }) => {
 };
 
 export default JournalView;
-
