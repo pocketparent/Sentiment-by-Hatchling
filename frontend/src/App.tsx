@@ -9,6 +9,7 @@ import { JournalEntry } from './types';
 function App() {
   const [selectedEntry, setSelectedEntry] = useState<JournalEntry | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
 
   const openModal = (entry: JournalEntry | null = null) => {
     setSelectedEntry(entry);
@@ -18,6 +19,14 @@ function App() {
   const closeModal = () => {
     setSelectedEntry(null);
     setIsModalOpen(false);
+  };
+
+  const openSettings = () => {
+    setShowSettings(true);
+  };
+
+  const closeSettings = () => {
+    setShowSettings(false);
   };
 
   return (
@@ -30,24 +39,30 @@ function App() {
         />
 
         <Routes>
-          <Route path="/" element={<JournalView onSelectEntry={openModal} />} />
-          <Route path="/settings" element={<Settings />} />
+          <Route path="/" element={
+            <JournalView 
+              onSelectEntry={openModal} 
+              onOpenSettings={openSettings}
+            />
+          } />
           <Route path="/login" element={<Login />} />
         </Routes>
 
-        <button
-          className="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-black text-white text-2xl flex items-center justify-center shadow-lg hover:bg-neutral-800 transition z-50"
-          onClick={() => openModal(null)}
-          aria-label="New Entry"
-        >
-          +
-        </button>
+        {/* Removed duplicate + button from here since it's now in JournalView */}
 
         {isModalOpen && (
           <EntryModal
             entry={selectedEntry}
             onClose={closeModal}
+            onEntrySaved={() => {
+              closeModal();
+              // Force refresh of journal entries
+            }}
           />
+        )}
+
+        {showSettings && (
+          <Settings onClose={closeSettings} />
         )}
       </div>
     </Router>
