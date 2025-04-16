@@ -17,7 +17,8 @@ function App() {
   useEffect(() => {
     const fetchEntries = async () => {
       try {
-        const response = await fetch('/api/entries', {
+        console.log("Fetching entries...");
+        const response = await fetch('/api/entry', {
           headers: {
             'X-User-ID': localStorage.getItem('userId') || 'demo'
           }
@@ -25,7 +26,13 @@ function App() {
         
         if (response.ok) {
           const data = await response.json();
-          setEntries(data);
+          console.log("Entries fetched successfully:", data);
+          if (data.entries && Array.isArray(data.entries)) {
+            setEntries(data.entries);
+          } else {
+            console.error('Unexpected response format:', data);
+            setEntries([]);
+          }
         } else {
           console.error('Failed to fetch entries:', response.statusText);
         }
@@ -57,6 +64,7 @@ function App() {
 
   const handleEntrySaved = () => {
     // Trigger a refresh of entries
+    console.log("Entry saved, refreshing entries...");
     setRefreshTrigger(prev => prev + 1);
     closeModal();
   };
@@ -67,7 +75,7 @@ function App() {
         <img
           src="/hatchling-logo.png"
           alt="Hatchling logo"
-          className="h-16 mx-auto mt-6 mb-2" // Increased logo size from h-12 to h-16
+          className="h-20 mx-auto mt-6 mb-1" // Increased logo size from h-16 to h-20 and reduced bottom margin
         />
 
         <Routes>
