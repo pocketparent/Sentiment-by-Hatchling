@@ -1,261 +1,159 @@
-import { JournalEntry } from '../types';
+// Frontend API client fixes for entries.ts
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL
-  ? `${import.meta.env.VITE_API_BASE_URL}/entry`
-  : '/api/entry';
+import axios from 'axios';
 
-export async function fetchEntries(filters = {}): Promise<JournalEntry[]> {
-  // Build query string from filters
-  const queryParams = new URLSearchParams();
-  
-  Object.entries(filters).forEach(([key, value]) => {
-    if (value) {
-      queryParams.append(key, value.toString());
-    }
-  });
-  
-  const queryString = queryParams.toString();
-  const url = queryString ? `${API_BASE}?${queryString}` : API_BASE;
-  
+const API_URL = process.env.REACT_APP_API_URL || 'https://api.myhatchling.ai';
+
+// Define types
+export interface Entry {
+  entry_id: string;
+  content: string;
+  tags: string[];
+  privacy: 'private' | 'shared';
+  author_id: string;
+  created_at: string;
+  updated_at: string;
+  media_url?: string;
+}
+
+export interface EntryInput {
+  content: string;
+  tags?: string[];
+  privacy?: 'private' | 'shared';
+  media_url?: string;
+}
+
+// Helper function to get user ID from localStorage
+const getUserId = (): string => {
+  return localStorage.getItem('userId') || 'demo';
+};
+
+// Fetch all entries
+export const fetchEntries = async (): Promise<Entry[]> => {
   try {
-    const response = await fetch(url, {
+    console.log('Fetching entries...');
+    const response = await axios.get(`${API_URL}/api/entry`, {
       headers: {
-        'X-User-ID': localStorage.getItem('userId') || 'demo'
+        'x-user-id': getUserId()
       }
     });
     
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('❌ Error fetching entries:', errorText);
-      throw new Error('Failed to fetch journal entries');
-    }
-    
-    const data = await response.json();
-    return data.entries || [];
+    console.log('Entries received:', response.data.entries);
+    return response.data.entries || [];
   } catch (error) {
-    console.error('❌ Fetch entries error:', error);
-    throw error;
-  }
-}
-
-export async function createEntry(formData: FormData): Promise<JournalEntry> {
-  try {
-    // Ensure required fields are present
-    if (!formData.get('date_of_memory')) {
-      throw new Error('Date of memory is required');
-    }
-    
-    // If no content and no media, throw error
-    if (!formData.get('content') && !formData.has('media')) {
-      throw new Error('Either content or media is required');
-    }
-    
-    // Add author_id if not present
-    if (!formData.get('author_id')) {
-      formData.append('author_id', localStorage.getItem('userId') || 'demo');
-    }
-    
-    // Add source_type if not present
-    if (!formData.get('source_type')) {
-      formData.append('source_type', 'app');
-    }
-    
-    // Set default privacy if not specified
-    if (!formData.get('privacy')) {
-      formData.append('privacy', 'private');
-    }
-    
-    // Debug log
-    console.log('📤 Submitting Entry FormData:');
-    for (const [key, value] of formData.entries()) {
-      console.log(`📦 ${key}:`, value);
-    }
-
-    const response = await fetch(API_BASE, {
-      method: 'POST',
-      body: formData,
-      headers: {
-        'X-User-ID': localStorage.getItem('userId') || 'demo'
-      }
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => null) || await response.text();
-      console.error('❌ Server error response:', errorData);
-      throw new Error(typeof errorData === 'object' && errorData.error 
-        ? errorData.error 
-        : 'Failed to create entry');
-    }
-
-    const result = await response.json();
-    console.log('✅ Entry created successfully:', result);
-    return result.entry;
-  } catch (error) {
-    console.error('❌ Create entry error:', error);
-    throw error;
-  }
-}
-
-export async function updateEntry(id: string, formData: FormData): Promise<JournalEntry> {
-  try {
-    // Ensure we have an ID
-    if (!id) {
-      throw new Error('Entry ID is required for updates');
-    }
-    
-    // Debug log
-    console.log(`📤 Updating Entry ${id} with FormData:`);
-    for (const [key, value] of formData.entries()) {
-      console.log(`📦 ${key}:`, value);
-    }
-
-    const response = await fetch(`${API_BASE}/${id}`, {
-      method: 'PATCH',
-      body: formData,
-      headers: {
-        'X-User-ID': localStorage.getItem('userId') || 'demo'
-      }
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => null) || await response.text();
-      console.error('❌ Server error response:', errorData);
-      throw new Error(typeof errorData === 'object' && errorData.error 
-        ? errorData.error 
-        : 'Failed to update entry');
-    }
-
-    const result = await response.json();
-    console.log('✅ Entry updated successfully:', result);
-    return result.entry;
-  } catch (error) {
-    console.error('❌ Update entry error:', error);
-    throw error;
-  }
-}
-
-export async function deleteEntry(id: string): Promise<{ success: boolean }> {
-  try {
-    if (!id) {
-      throw new Error('Entry ID is required for deletion');
-    }
-    
-    console.log(`🗑️ Deleting entry ${id}`);
-    
-    const response = await fetch(`${API_BASE}/${id}`, {
-      method: 'DELETE',
-      headers: {
-        'X-User-ID': localStorage.getItem('userId') || 'demo'
-      }
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => null) || await response.text();
-      console.error('❌ Server error response:', errorData);
-      throw new Error(typeof errorData === 'object' && errorData.error 
-        ? errorData.error 
-        : 'Failed to delete entry');
-    }
-
-    const result = await response.json();
-    console.log('✅ Entry deleted successfully:', result);
-    return { success: true };
-  } catch (error) {
-    console.error('❌ Delete entry error:', error);
-    throw error;
-  }
-}
-
-export async function getEntryById(id: string): Promise<JournalEntry> {
-  try {
-    if (!id) {
-      throw new Error('Entry ID is required');
-    }
-    
-    console.log(`🔍 Fetching entry ${id}`);
-    
-    const response = await fetch(`${API_BASE}/${id}`, {
-      headers: {
-        'X-User-ID': localStorage.getItem('userId') || 'demo'
-      }
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => null) || await response.text();
-      console.error('❌ Server error response:', errorData);
-      throw new Error(typeof errorData === 'object' && errorData.error 
-        ? errorData.error 
-        : 'Failed to fetch entry');
-    }
-
-    const result = await response.json();
-    return result.entry;
-  } catch (error) {
-    console.error('❌ Get entry error:', error);
-    throw error;
-  }
-}
-
-export async function generateAITags(content: string): Promise<string[]> {
-  try {
-    if (!content || content.trim().length < 10) {
-      console.log('⚠️ Content too short for AI tag generation');
-      return [];
-    }
-    
-    console.log('🤖 Requesting AI tags for content');
-    
-    // For now, return mock tags to prevent errors while backend is being implemented
-    // This ensures the UI works even if the backend endpoint isn't ready
-    console.log('⚠️ Using mock tags while backend endpoint is being implemented');
-    
-    // Simulate network delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // Generate some relevant tags based on content
-    const mockTags = [];
-    
-    if (content.toLowerCase().includes('baby')) mockTags.push('baby');
-    if (content.toLowerCase().includes('sleep')) mockTags.push('sleep');
-    if (content.toLowerCase().includes('food') || content.toLowerCase().includes('eat')) mockTags.push('food');
-    if (content.toLowerCase().includes('smile') || content.toLowerCase().includes('laugh')) mockTags.push('happy');
-    if (content.toLowerCase().includes('cry')) mockTags.push('emotional');
-    if (content.toLowerCase().includes('walk') || content.toLowerCase().includes('crawl')) mockTags.push('milestone');
-    if (content.toLowerCase().includes('doctor') || content.toLowerCase().includes('sick')) mockTags.push('health');
-    
-    // Add some default tags if we don't have enough
-    if (mockTags.length < 2) {
-      const defaultTags = ['memory', 'moment', 'family', 'growth', 'development'];
-      const randomTag = defaultTags[Math.floor(Math.random() * defaultTags.length)];
-      mockTags.push(randomTag);
-    }
-    
-    console.log('✅ Mock AI tags generated:', mockTags);
-    return mockTags;
-    
-    /* Uncomment this when backend endpoint is ready
-    const response = await fetch(`${API_BASE}/generate-tags`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-User-ID': localStorage.getItem('userId') || 'demo'
-      },
-      body: JSON.stringify({ content })
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => null) || await response.text();
-      console.error('❌ AI tag generation failed:', errorData);
-      return [];
-    }
-
-    const result = await response.json();
-    console.log('✅ AI tags generated:', result.tags);
-    return result.tags || [];
-    */
-  } catch (error) {
-    console.error('❌ AI tag generation error:', error);
+    console.error('Failed to fetch entries:', error);
     // Return empty array instead of throwing to prevent UI errors
     return [];
   }
-}
+};
+
+// Create a new entry
+export const createEntry = async (entryData: EntryInput): Promise<Entry> => {
+  try {
+    const response = await axios.post(`${API_URL}/api/entry`, entryData, {
+      headers: {
+        'x-user-id': getUserId()
+      }
+    });
+    
+    console.log('Entry created:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('Failed to create entry:', error);
+    throw new Error('Failed to create entry. Please try again.');
+  }
+};
+
+// Get entry by ID
+export const getEntry = async (entryId: string): Promise<Entry> => {
+  try {
+    const response = await axios.get(`${API_URL}/api/entry/${entryId}`, {
+      headers: {
+        'x-user-id': getUserId()
+      }
+    });
+    
+    return response.data;
+  } catch (error) {
+    console.error(`Failed to fetch entry ${entryId}:`, error);
+    throw new Error('Failed to fetch entry. Please try again.');
+  }
+};
+
+// Update an entry
+export const updateEntry = async (entryId: string, entryData: Partial<EntryInput>): Promise<Entry> => {
+  try {
+    const response = await axios.put(`${API_URL}/api/entry/${entryId}`, entryData, {
+      headers: {
+        'x-user-id': getUserId()
+      }
+    });
+    
+    console.log('Entry updated:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error(`Failed to update entry ${entryId}:`, error);
+    throw new Error('Failed to update entry. Please try again.');
+  }
+};
+
+// Delete an entry
+export const deleteEntry = async (entryId: string): Promise<void> => {
+  try {
+    await axios.delete(`${API_URL}/api/entry/${entryId}`, {
+      headers: {
+        'x-user-id': getUserId()
+      }
+    });
+    
+    console.log('Entry deleted:', entryId);
+  } catch (error) {
+    console.error(`Failed to delete entry ${entryId}:`, error);
+    throw new Error('Failed to delete entry. Please try again.');
+  }
+};
+
+// Generate AI tags for content
+export const generateAITags = async (content: string): Promise<string[]> => {
+  try {
+    console.log('🤖 Requesting AI tags for content');
+    
+    // Check if content is long enough
+    if (!content || content.trim().length < 10) {
+      console.warn('Content too short for AI tag generation');
+      return ['moment'];
+    }
+    
+    try {
+      const response = await axios.post(`${API_URL}/api/entry/generate-tags`, { content }, {
+        headers: {
+          'x-user-id': getUserId()
+        },
+        timeout: 10000 // 10 second timeout for AI processing
+      });
+      
+      console.log('✅ AI tags generated:', response.data.tags);
+      return response.data.tags;
+    } catch (apiError) {
+      console.error('Error calling AI tag API:', apiError);
+      console.warn('⚠️ Using mock tags while backend endpoint is being fixed');
+      
+      // Fallback to simple content-based tag generation
+      const words = content.toLowerCase().split(/\s+/);
+      const potentialTags = ['moment', 'memory', 'milestone', 'experience', 'growth', 'family', 'love', 'joy'];
+      
+      // Try to extract meaningful words from content
+      const contentBasedTags = words
+        .filter(word => word.length > 3 && !['this', 'that', 'with', 'from', 'have', 'were', 'they', 'their'].includes(word))
+        .slice(0, 2);
+      
+      // Combine with some default tags
+      const mockTags = [...new Set([...contentBasedTags, 'moment', potentialTags[Math.floor(Math.random() * potentialTags.length)]])];
+      console.log('✅ Mock AI tags generated:', mockTags);
+      return mockTags;
+    }
+  } catch (error) {
+    console.error('Failed to generate AI tags:', error);
+    return ['moment']; // Return at least one tag as fallback
+  }
+};
