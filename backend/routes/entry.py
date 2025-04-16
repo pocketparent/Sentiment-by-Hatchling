@@ -5,8 +5,7 @@ from utils.openai_client import transcribe_audio, get_ai_tags
 import logging
 import traceback
 from datetime import datetime
-import os
-import openai
+import uuid
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -34,32 +33,17 @@ def create_entry():
     """
     try:
         logger.info("📥 POST /api/entry hit!")
-        
-        # Handle both form data and JSON requests
-        if request.content_type and 'application/json' in request.content_type:
-            data = request.json
-            content = data.get("content", "")
-            author_id = data.get("author_id") or request.headers.get("x-user-id", "demo")
-            date_of_memory = data.get("date_of_memory", datetime.now().strftime("%Y-%m-%d"))
-            privacy = data.get("privacy", "private")
-            manual_tags = data.get("tags", [])
-            source_type = data.get("source_type", "app")
-            media_url = data.get("media_url")
-            transcription = None
-        else:
-            content = request.form.get("content", "")
-            author_id = request.form.get("author_id") or request.headers.get("x-user-id", "demo")
-            date_of_memory = request.form.get("date_of_memory", datetime.now().strftime("%Y-%m-%d"))
-            privacy = request.form.get("privacy", "private")
-            manual_tags = request.form.getlist("tags")
-            source_type = request.form.get("source_type", "app")
-            media_url = None
-            transcription = None
+        content = request.form.get("content", "")
+        author_id = request.form.get("author_id")
+        date_of_memory = request.form.get("date_of_memory")
+        privacy = request.form.get("privacy", "private")
+        manual_tags = request.form.getlist("tags")
+        source_type = request.form.get("source_type", "app")
 
         # Validate required fields
-        if not author_id:
-            logger.warning("Missing required field: author_id")
-            return jsonify({"error": "Missing required field: author_id"}), 400
+        if not author_id or not date_of_memory:
+            logger.warning("Missing required fields in entry creation")
+            return jsonify({"error": "Missing required fields: author_id or date_of_memory"}), 400
 
         # Validate privacy setting
         valid_privacy_options = ["private", "shared", "public"]
@@ -79,7 +63,7 @@ def create_entry():
             return jsonify({"error": "Invalid date format. Use YYYY-MM-DD."}), 400
 
         # Handle tags
-        tag_list = [tag.strip() for tag in manual_tags if tag and tag.strip()]
+        tag_list = [tag.strip() for tag in manual_tags if tag.strip()]
         ai_tags = []
         if content and not tag_list:  # Only generate AI tags if no manual tags provided
             try:
@@ -87,13 +71,15 @@ def create_entry():
                 logger.info(f"🧠 AI tags generated: {ai_tags}")
             except Exception as e:
                 logger.error(f"❌ AI tag generation failed: {str(e)}")
-                # Continue without AI tags rather than failing the request
-                # Provide some default tags as fallback
-                ai_tags = ["memory", "moment"]
+                # Generate fallback tags based on content
+                ai_tags = generate_fallback_tags(content)
+                logger.info(f"🔄 Fallback tags generated: {ai_tags}")
         combined_tags = list(set(tag_list + ai_tags))
 
         # Handle media
         file = request.files.get("media")
+        media_url = None
+        transcription = None
         if file:
             try:
                 logger.info(f"📂 Media file received: {file.filename}")
@@ -128,26 +114,24 @@ def create_entry():
         }
 
         # Add journal_id for future multi-child support
-        journal_id = request.form.get("journal_id") if request.form else data.get("journal_id") if 'data' in locals() else None
+        journal_id = request.form.get("journal_id")
         if journal_id:
             entry["journal_id"] = journal_id
 
-        # Add to Firestore
-        try:
-            doc_ref = db.collection("entries").add(entry)
-            entry_id = doc_ref[1].id
-            logger.info(f"✅ Entry created: {entry_id} by {author_id}")
-        except Exception as e:
-            logger.error(f"❌ Firestore error: {str(e)}")
-            # Create a mock entry ID for testing
-            entry_id = f"mock-{datetime.now().timestamp()}"
-            logger.info(f"⚠️ Using mock entry ID: {entry_id}")
+        # Generate a unique ID for the entry
+        entry_id = str(uuid.uuid4())
+        
+        # Add to Firestore with the generated ID
+        db.collection("entries").document(entry_id).set(entry)
+        
+        logger.info(f"✅ Entry created: {entry_id} by {author_id}")
+        
+        # Return the complete entry for immediate display
+        entry["entry_id"] = entry_id
         
         return jsonify({
-            "entry_id": entry_id, 
-            "status": "created",
-            "tags": combined_tags,
-            "media_url": media_url
+            "entry": entry,
+            "status": "created"
         }), 200
 
     except Exception as e:
@@ -171,7 +155,7 @@ def get_entries():
         logger.info("📥 GET /api/entry hit!")
         
         # Get query parameters
-        author_id = request.args.get("author_id") or request.headers.get("x-user-id", "demo")
+        author_id = request.args.get("author_id")
         tag_filter = request.args.get("tag")
         privacy_filter = request.args.get("privacy")
         sort_order = request.args.get("sort_order", "desc").lower()
@@ -184,47 +168,42 @@ def get_entries():
         direction = firestore.Query.DESCENDING if sort_order == "desc" else firestore.Query.ASCENDING
         
         # Start with base query
-        try:
-            query = db.collection("entries").where("deleted_flag", "==", False)
+        query = db.collection("entries").where("deleted_flag", "==", False)
+        
+        # Apply filters if provided
+        if author_id:
+            query = query.where("author_id", "==", author_id)
             
-            # Apply filters if provided
-            if author_id:
-                query = query.where("author_id", "==", author_id)
-                
-            if privacy_filter:
-                query = query.where("privacy", "==", privacy_filter)
-                
-            # Apply sorting
-            query = query.order_by("date_of_memory", direction=direction)
+        if privacy_filter:
+            query = query.where("privacy", "==", privacy_filter)
             
-            # Execute query
-            docs = query.stream()
+        # Apply sorting
+        query = query.order_by("date_of_memory", direction=direction)
+        
+        # Execute query
+        docs = query.stream()
+        
+        # Process results
+        entries = []
+        for doc in docs:
+            entry = doc.to_dict()
+            entry["entry_id"] = doc.id
             
-            # Process results
-            entries = []
-            for doc in docs:
-                entry = doc.to_dict()
-                entry["entry_id"] = doc.id
+            # Apply tag filter after fetching (Firestore doesn't support array contains in compound queries)
+            if tag_filter and tag_filter not in entry.get("tags", []):
+                continue
                 
-                # Apply tag filter after fetching (Firestore doesn't support array contains in compound queries)
-                if tag_filter and tag_filter not in entry.get("tags", []):
-                    continue
-                    
-                entries.append(entry)
+            entries.append(entry)
 
-            logger.info(f"📦 Returning {len(entries)} entries")
-        except Exception as e:
-            logger.error(f"❌ Firestore query error: {str(e)}")
-            # Return empty list for testing
-            entries = []
-            logger.info("⚠️ Returning empty entries list due to Firestore error")
-            
+        logger.info(f"📦 Returning {len(entries)} entries")
         return jsonify({"entries": entries}), 200
         
     except Exception as e:
         logger.error(f"❌ Error in GET /api/entry: {str(e)}")
         logger.error(traceback.format_exc())
-        return jsonify({"error": "Internal server error", "details": str(e)}), 500
+        
+        # Return empty entries array instead of error to prevent UI breakage
+        return jsonify({"entries": [], "error": str(e)}), 200
 
 @entry_bp.route("/<entry_id>", methods=["PATCH"])
 def update_entry(entry_id):
@@ -241,54 +220,28 @@ def update_entry(entry_id):
         logger.info(f"🛠 PATCH /api/entry/{entry_id} hit")
         
         # Check if entry exists
-        try:
-            entry_ref = db.collection("entries").document(entry_id)
-            entry_doc = entry_ref.get()
-            
-            if not entry_doc.exists:
-                logger.warning(f"Entry not found: {entry_id}")
-                return jsonify({"error": "Entry not found"}), 404
-                
-            # Get existing entry data
-            existing_entry = entry_doc.to_dict()
-        except Exception as e:
-            logger.error(f"❌ Firestore get error: {str(e)}")
-            # Mock existing entry for testing
-            existing_entry = {
-                "content": "",
-                "author_id": request.headers.get("x-user-id", "demo"),
-                "date_of_memory": datetime.now().strftime("%Y-%m-%d"),
-                "privacy": "private",
-                "tags": [],
-                "media_url": None,
-                "transcription": None,
-                "source_type": "app",
-                "deleted_flag": False
-            }
-            logger.info("⚠️ Using mock existing entry due to Firestore error")
+        entry_ref = db.collection("entries").document(entry_id)
+        entry_doc = entry_ref.get()
         
-        # Handle both form data and JSON requests
-        if request.content_type and 'application/json' in request.content_type:
-            data = request.json
-            content = data.get("content", existing_entry.get("content", ""))
-            author_id = data.get("author_id", existing_entry.get("author_id"))
-            date_of_memory = data.get("date_of_memory", existing_entry.get("date_of_memory"))
-            privacy = data.get("privacy", existing_entry.get("privacy", "private"))
-            manual_tags = data.get("tags", [])
-            media_url = data.get("media_url", existing_entry.get("media_url"))
-        else:
-            data = request.form
-            content = data.get("content", existing_entry.get("content", ""))
-            author_id = data.get("author_id", existing_entry.get("author_id"))
-            date_of_memory = data.get("date_of_memory", existing_entry.get("date_of_memory"))
-            privacy = data.get("privacy", existing_entry.get("privacy", "private"))
-            manual_tags = request.form.getlist("tags")
-            media_url = existing_entry.get("media_url")
+        if not entry_doc.exists:
+            logger.warning(f"Entry not found: {entry_id}")
+            return jsonify({"error": "Entry not found"}), 404
+            
+        # Get existing entry data
+        existing_entry = entry_doc.to_dict()
+        
+        # Get form data
+        data = request.form
+        content = data.get("content", existing_entry.get("content", ""))
+        author_id = data.get("author_id", existing_entry.get("author_id"))
+        date_of_memory = data.get("date_of_memory", existing_entry.get("date_of_memory"))
+        privacy = data.get("privacy", existing_entry.get("privacy", "private"))
+        manual_tags = request.form.getlist("tags")
         
         # Validate required fields
-        if not author_id:
-            logger.warning("Missing required field: author_id")
-            return jsonify({"error": "Missing required field: author_id"}), 400
+        if not author_id or not date_of_memory:
+            logger.warning("Missing required fields in entry update")
+            return jsonify({"error": "Missing required fields: author_id or date_of_memory"}), 400
             
         # Validate privacy setting
         valid_privacy_options = ["private", "shared", "public"]
@@ -308,7 +261,7 @@ def update_entry(entry_id):
             return jsonify({"error": "Invalid date format. Use YYYY-MM-DD."}), 400
 
         # Handle tags
-        tag_list = [tag.strip() for tag in manual_tags if tag and tag.strip()]
+        tag_list = [tag.strip() for tag in manual_tags if tag.strip()]
         ai_tags = []
         if not tag_list and content:
             try:
@@ -316,9 +269,9 @@ def update_entry(entry_id):
                 logger.info(f"🧠 AI tags (update): {ai_tags}")
             except Exception as e:
                 logger.error(f"❌ AI tag generation failed in PATCH: {str(e)}")
-                # Continue without AI tags rather than failing the request
-                # Provide some default tags as fallback
-                ai_tags = ["memory", "moment"]
+                # Generate fallback tags based on content
+                ai_tags = generate_fallback_tags(content)
+                logger.info(f"🔄 Fallback tags generated: {ai_tags}")
 
         combined_tags = list(set(tag_list + ai_tags))
 
@@ -349,22 +302,18 @@ def update_entry(entry_id):
             except Exception as e:
                 logger.error(f"❌ Media upload or transcription failed in PATCH: {str(e)}")
                 # Continue without media rather than failing the request
-        elif media_url:
-            update_data["media_url"] = media_url
 
         # Update the entry
-        try:
-            entry_ref.update(update_data)
-            logger.info(f"✅ Entry {entry_id} updated successfully")
-        except Exception as e:
-            logger.error(f"❌ Firestore update error: {str(e)}")
-            logger.info("⚠️ Mock update successful for testing")
+        entry_ref.update(update_data)
+        logger.info(f"✅ Entry {entry_id} updated successfully")
+        
+        # Get the updated entry to return
+        updated_entry = entry_ref.get().to_dict()
+        updated_entry["entry_id"] = entry_id
         
         return jsonify({
             "status": "updated",
-            "entry_id": entry_id,
-            "tags": update_data.get("tags", []),
-            "media_url": update_data.get("media_url")
+            "entry": updated_entry
         }), 200
 
     except Exception as e:
@@ -384,20 +333,16 @@ def delete_entry(entry_id):
         logger.info(f"🗑️ DELETE /api/entry/{entry_id} hit")
         
         # Check if entry exists
-        try:
-            entry_ref = db.collection("entries").document(entry_id)
-            entry_doc = entry_ref.get()
+        entry_ref = db.collection("entries").document(entry_id)
+        entry_doc = entry_ref.get()
+        
+        if not entry_doc.exists:
+            logger.warning(f"Entry not found for deletion: {entry_id}")
+            return jsonify({"error": "Entry not found"}), 404
             
-            if not entry_doc.exists:
-                logger.warning(f"Entry not found for deletion: {entry_id}")
-                return jsonify({"error": "Entry not found"}), 404
-                
-            # Soft delete by setting deleted_flag to true
-            entry_ref.update({"deleted_flag": True})
-            logger.info(f"✅ Entry {entry_id} soft deleted")
-        except Exception as e:
-            logger.error(f"❌ Firestore delete error: {str(e)}")
-            logger.info("⚠️ Mock delete successful for testing")
+        # Soft delete by setting deleted_flag to true
+        entry_ref.update({"deleted_flag": True})
+        logger.info(f"✅ Entry {entry_id} soft deleted")
         
         return jsonify({"status": "deleted", "entry_id": entry_id}), 200
         
@@ -406,88 +351,133 @@ def delete_entry(entry_id):
         logger.error(traceback.format_exc())
         return jsonify({"error": "Delete failed", "details": str(e)}), 500
 
+# Add dedicated endpoint for AI tag generation
 @entry_bp.route("/generate-tags", methods=["POST"])
 def generate_tags():
     """
-    Generate AI tags for entry content.
+    Generate AI tags for content.
     
     Request body:
     - content: Text content to generate tags for
-    
-    Returns:
-    - tags: List of generated tags
     """
     try:
         logger.info("📥 POST /api/entry/generate-tags hit!")
         
-        # Get content from request
-        if request.content_type and 'application/json' in request.content_type:
-            data = request.json
-            content = data.get("content", "")
-        else:
-            content = request.form.get("content", "")
-        
+        # Get request data
+        data = request.json
+        if not data or "content" not in data:
+            return jsonify({"error": "Missing content in request"}), 400
+            
+        content = data["content"]
         if not content or len(content.strip()) < 10:
-            logger.warning("Content too short for tag generation")
-            return jsonify({"error": "Content is too short for tag generation"}), 400
-        
-        logger.info("🤖 Generating AI tags for content")
-        
-        # Try to use the existing get_ai_tags function
+            return jsonify({"error": "Content too short for tag generation"}), 400
+            
+        # Generate tags
         try:
             tags = get_ai_tags(content)
-            logger.info(f"✅ AI tags generated: {tags}")
-            return jsonify({"tags": tags})
+            logger.info(f"🧠 AI tags generated: {tags}")
         except Exception as e:
-            logger.error(f"❌ Error using get_ai_tags: {str(e)}")
+            logger.error(f"❌ AI tag generation failed: {str(e)}")
+            # Generate fallback tags based on content
+            tags = generate_fallback_tags(content)
+            logger.info(f"🔄 Fallback tags generated: {tags}")
             
-            # Fallback to direct OpenAI API call
-            try:
-                if os.environ.get("OPENAI_API_KEY"):
-                    openai.api_key = os.environ.get("OPENAI_API_KEY")
-                    response = openai.ChatCompletion.create(
-                        model="gpt-3.5-turbo",
-                        messages=[
-                            {
-                                "role": "system",
-                                "content": "You are a helpful assistant that generates relevant tags for journal entries. Generate 3-5 single-word tags that capture the essence of the content. Return only the tags as a comma-separated list without any additional text."
-                            },
-                            {
-                                "role": "user",
-                                "content": content
-                            }
-                        ],
-                        max_tokens=50,
-                        temperature=0.7,
-                    )
-                    
-                    # Process the response to extract tags
-                    tag_text = response.choices[0].message.content.strip()
-                    tags = [tag.strip().lower() for tag in tag_text.split(',')]
-                    tags = [tag for tag in tags if tag and len(tag) < 20][:5]  # Limit to 5 tags
-                    
-                    logger.info(f"✅ AI tags generated (fallback): {tags}")
-                    return jsonify({"tags": tags})
-                else:
-                    logger.warning("OpenAI API key not configured, using default tags")
-                    # Return default tags as a last resort
-                    return jsonify({"tags": ["memory", "moment", "experience"]}), 200
-            except Exception as e:
-                logger.error(f"❌ Fallback tag generation failed: {str(e)}")
-                # Return default tags as a last resort
-                return jsonify({"tags": ["memory", "moment", "experience"]}), 200
-                
+        return jsonify({"tags": tags}), 200
+        
     except Exception as e:
         logger.error(f"❌ Error in POST /api/entry/generate-tags: {str(e)}")
         logger.error(traceback.format_exc())
-        # Return default tags rather than an error to ensure frontend doesn't break
-        return jsonify({"tags": ["memory", "moment", "experience"]}), 200
+        # Generate fallback tags even on general errors
+        try:
+            content = request.json.get("content", "")
+            tags = generate_fallback_tags(content)
+            return jsonify({"tags": tags, "fallback": True}), 200
+        except:
+            return jsonify({"tags": ["memory"], "fallback": True}), 200
 
-# Alias endpoint for compatibility with frontend
-@entry_bp.route("/entries", methods=["GET"])
-def get_entries_alias():
-    """Alias for GET /api/entry to ensure compatibility with frontend."""
-    return get_entries()
+# SMS entry endpoint
+@entry_bp.route("/sms", methods=["POST"])
+def sms_entry():
+    """
+    Handle incoming SMS messages and create entries.
+    
+    Request body (from Twilio):
+    - From: Phone number of sender
+    - Body: Message content
+    - MediaUrl0, MediaUrl1, etc.: URLs of media attachments
+    """
+    try:
+        logger.info("📥 POST /api/entry/sms hit!")
+        
+        # Get request data
+        from_number = request.form.get("From")
+        body = request.form.get("Body", "")
+        
+        if not from_number:
+            return jsonify({"error": "Missing sender information"}), 400
+            
+        # Look up user by phone number
+        users_ref = db.collection("users").where("phone_number", "==", from_number).limit(1)
+        users = list(users_ref.stream())
+        
+        if not users:
+            logger.warning(f"Unknown user with phone number: {from_number}")
+            # Return a friendly message for unauthorized numbers
+            response = f"<?xml version='1.0' encoding='UTF-8'?><Response><Message>Sorry, this number is not registered with Hatchling. Please register in the app first.</Message></Response>"
+            return response, 200, {"Content-Type": "text/xml"}
+            
+        user = users[0].to_dict()
+        user_id = users[0].id
+        
+        # Process media if any
+        media_urls = []
+        for i in range(10):  # Twilio can send up to 10 media attachments
+            media_url = request.form.get(f"MediaUrl{i}")
+            if media_url:
+                media_urls.append(media_url)
+                
+        # Create entry
+        entry = {
+            "content": body,
+            "author_id": user_id,
+            "date_of_memory": datetime.now().strftime("%Y-%m-%d"),
+            "privacy": user.get("default_privacy", "private"),
+            "source_type": "sms",
+            "timestamp_created": firestore.SERVER_TIMESTAMP,
+            "deleted_flag": False
+        }
+        
+        # Add media URLs if any
+        if media_urls:
+            entry["media_url"] = media_urls[0]  # Store first media URL
+            
+        # Generate tags
+        if body:
+            try:
+                tags = get_ai_tags(body)
+            except Exception as e:
+                logger.error(f"❌ AI tag generation failed for SMS: {str(e)}")
+                tags = generate_fallback_tags(body)
+                
+            entry["tags"] = tags
+            
+        # Save entry
+        entry_id = str(uuid.uuid4())
+        db.collection("entries").document(entry_id).set(entry)
+        
+        logger.info(f"✅ SMS entry created: {entry_id} from {from_number}")
+        
+        # Return success response for Twilio
+        response = f"<?xml version='1.0' encoding='UTF-8'?><Response><Message>Got it! Your memory has been saved.</Message></Response>"
+        return response, 200, {"Content-Type": "text/xml"}
+        
+    except Exception as e:
+        logger.error(f"❌ Error in POST /api/entry/sms: {str(e)}")
+        logger.error(traceback.format_exc())
+        
+        # Return error response for Twilio
+        response = f"<?xml version='1.0' encoding='UTF-8'?><Response><Message>Sorry, we couldn't save your memory. Please try again later.</Message></Response>"
+        return response, 200, {"Content-Type": "text/xml"}
 
 # Test routes for development
 @entry_bp.route("/test-openai", methods=["GET"])
@@ -518,27 +508,34 @@ def test_upload():
         logger.error(traceback.format_exc())
         return jsonify({"error": str(e)}), 500
 
-@entry_bp.route("/test-firebase", methods=["GET"])
-def test_firebase():
-    """Test route for Firebase connectivity."""
-    try:
-        # Test Firestore connection
-        db_info = {
-            "firestore_available": True,
-            "collections": []
-        }
+# Helper function for generating fallback tags when OpenAI is unavailable
+def generate_fallback_tags(content):
+    """Generate basic tags based on content keywords."""
+    content = content.lower()
+    tags = []
+    
+    # Check for common keywords
+    if any(word in content for word in ["baby", "infant", "newborn"]):
+        tags.append("baby")
+    if any(word in content for word in ["sleep", "nap", "bedtime"]):
+        tags.append("sleep")
+    if any(word in content for word in ["food", "eat", "feeding", "meal"]):
+        tags.append("food")
+    if any(word in content for word in ["smile", "laugh", "happy", "joy"]):
+        tags.append("happy")
+    if any(word in content for word in ["cry", "sad", "upset", "tears"]):
+        tags.append("emotional")
+    if any(word in content for word in ["walk", "crawl", "stand", "step"]):
+        tags.append("milestone")
+    if any(word in content for word in ["doctor", "sick", "health", "medicine"]):
+        tags.append("health")
+    if any(word in content for word in ["play", "toy", "game", "fun"]):
+        tags.append("play")
+    if any(word in content for word in ["family", "mom", "dad", "parent"]):
+        tags.append("family")
+    
+    # Add a default tag if none were found
+    if not tags:
+        tags.append("memory")
         
-        try:
-            collections = db.collections()
-            for collection in collections:
-                db_info["collections"].append(collection.id)
-        except Exception as e:
-            db_info["firestore_available"] = False
-            db_info["error"] = str(e)
-        
-        return jsonify(db_info)
-    except Exception as e:
-        logger.error(f"❌ Firebase test failed: {str(e)}")
-        logger.error(traceback.format_exc())
-        return jsonify({"error": "Firebase test failed", "details": str(e)}), 500
-
+    return tags
