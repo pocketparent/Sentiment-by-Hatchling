@@ -1,64 +1,136 @@
-// AITagGenerator.tsx fixes for proper tag generation
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { generateAITags } from '../api/entries';
 
 interface AITagGeneratorProps {
   content: string;
   onTagsGenerated: (tags: string[]) => void;
+  existingTags?: string[];
 }
 
-const AITagGenerator: React.FC<AITagGeneratorProps> = ({ content, onTagsGenerated }) => {
-  const [loading, setLoading] = useState<boolean>(false);
+const AITagGenerator: React.FC<AITagGeneratorProps> = ({ 
+  content, 
+  onTagsGenerated,
+  existingTags = []
+}) => {
+  const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<boolean>(false);
+  const [success, setSuccess] = useState(false);
+  const [generatedTags, setGeneratedTags] = useState<string[]>([]);
 
+  // Generate tags based on content
   const handleGenerateTags = async () => {
-    if (!content || content.trim().length < 10) {
-      setError('Please add more content before generating tags');
+    if (content.trim().length < 10) {
+      setError('Please write more content to generate tags');
       return;
     }
-
+    
+    setIsGenerating(true);
+    setError(null);
+    setSuccess(false);
+    setGeneratedTags([]);
+    
     try {
-      setLoading(true);
-      setError(null);
-      setSuccess(false);
-      
+      console.log("Generating AI tags for content:", content.substring(0, 50) + "...");
       const tags = await generateAITags(content);
+      console.log("Generated tags:", tags);
       
       if (tags && tags.length > 0) {
-        onTagsGenerated(tags);
+        // Filter out tags that already exist
+        const newTags = tags.filter(tag => !existingTags.includes(tag));
+        setGeneratedTags(newTags);
+        onTagsGenerated(newTags);
         setSuccess(true);
-        setTimeout(() => setSuccess(false), 3000); // Clear success message after 3 seconds
+        
+        // Reset success message after 5 seconds
+        setTimeout(() => setSuccess(false), 5000);
       } else {
-        setError('No tags could be generated. Please try again.');
+        // Generate fallback tags based on content
+        const fallbackTags = generateFallbackTags(content);
+        if (fallbackTags.length > 0) {
+          const newTags = fallbackTags.filter(tag => !existingTags.includes(tag));
+          setGeneratedTags(newTags);
+          onTagsGenerated(newTags);
+          setSuccess(true);
+          
+          // Reset success message after 5 seconds
+          setTimeout(() => setSuccess(false), 5000);
+        } else {
+          setError('Could not generate tags. Please try again or add them manually.');
+        }
       }
     } catch (err) {
-      console.error('Error generating tags:', err);
-      setError('Failed to generate tags. Please try again.');
+      console.error('Tag generation error:', err);
+      
+      // Try fallback tag generation
+      const fallbackTags = generateFallbackTags(content);
+      if (fallbackTags.length > 0) {
+        const newTags = fallbackTags.filter(tag => !existingTags.includes(tag));
+        setGeneratedTags(newTags);
+        onTagsGenerated(newTags);
+        setSuccess(true);
+        
+        // Reset success message after 5 seconds
+        setTimeout(() => setSuccess(false), 5000);
+      } else {
+        setError('Failed to generate tags. Please try again or add them manually.');
+      }
     } finally {
-      setLoading(false);
+      setIsGenerating(false);
     }
   };
 
+  // Generate fallback tags based on content keywords
+  const generateFallbackTags = (text: string): string[] => {
+    const content = text.toLowerCase();
+    const tags: string[] = [];
+    
+    // Check for common keywords
+    if (content.includes('baby') || content.includes('infant') || content.includes('newborn')) {
+      tags.push('baby');
+    }
+    if (content.includes('sleep') || content.includes('nap') || content.includes('bedtime')) {
+      tags.push('sleep');
+    }
+    if (content.includes('food') || content.includes('eat') || content.includes('feeding')) {
+      tags.push('food');
+    }
+    if (content.includes('smile') || content.includes('laugh') || content.includes('happy')) {
+      tags.push('happy');
+    }
+    if (content.includes('cry') || content.includes('sad') || content.includes('tears')) {
+      tags.push('emotional');
+    }
+    if (content.includes('walk') || content.includes('crawl') || content.includes('step')) {
+      tags.push('milestone');
+    }
+    if (content.includes('doctor') || content.includes('sick') || content.includes('health')) {
+      tags.push('health');
+    }
+    
+    // Add a default tag if none were found
+    if (tags.length === 0) {
+      tags.push('memory');
+    }
+    
+    return tags;
+  };
+
   return (
-    <div className="ai-tag-generator">
+    <div className="mb-4">
       <button
+        type="button"
         onClick={handleGenerateTags}
-        disabled={loading || !content || content.trim().length < 10}
-        className={`flex items-center justify-center px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-          loading 
-            ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
-            : 'bg-green-100 text-green-800 hover:bg-green-200'
+        disabled={isGenerating || content.trim().length < 10}
+        className={`text-sm flex items-center mb-2 ${
+          isGenerating || content.trim().length < 10 
+            ? 'text-dusty-taupe opacity-50 cursor-not-allowed' 
+            : 'text-clay-brown hover:text-black transition-colors'
         }`}
       >
-        {loading ? (
+        {isGenerating ? (
           <>
-            <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-green-800" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-            Generating...
+            <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-clay-brown mr-2"></div>
+            Generating tags...
           </>
         ) : (
           <>
@@ -69,14 +141,22 @@ const AITagGenerator: React.FC<AITagGeneratorProps> = ({ content, onTagsGenerate
       </button>
       
       {error && (
-        <div className="text-red-500 text-sm mt-2">
-          {error}
-        </div>
+        <p className="text-red-500 text-xs mt-1 mb-2">{error}</p>
       )}
       
       {success && (
-        <div className="text-green-600 text-sm mt-2">
-          Tags generated successfully!
+        <div className="mt-2 mb-3">
+          <p className="text-green-600 text-xs mb-2">Tags generated successfully!</p>
+          <div className="flex flex-wrap gap-1">
+            {generatedTags.map((tag, index) => (
+              <span 
+                key={index} 
+                className="bg-blush-pink bg-opacity-20 text-clay-brown text-xs px-2 py-1 rounded-full"
+              >
+                {tag}
+              </span>
+            ))}
+          </div>
         </div>
       )}
     </div>
