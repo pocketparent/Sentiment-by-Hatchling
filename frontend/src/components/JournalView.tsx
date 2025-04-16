@@ -1,34 +1,54 @@
 import React, { useState, useEffect } from 'react';
 import { JournalEntry } from '../types';
 import { EntryFilters } from '../types/entry';
+import { fetchEntries } from '../api/entries';
 import EntryCard from './EntryCard';
 import EmptyState from './EmptyState';
 import { Settings, Trash, Search, Tag, Filter, Calendar, User, Eye } from 'lucide-react';
 import EntryModal from './EntryModal';
 
 interface Props {
-  entries: JournalEntry[];
   onSelectEntry: (entry: JournalEntry | null) => void;
-  onOpenSettings: () => void;
-  onRefresh: () => void;
 }
 
-const JournalView: React.FC<Props> = ({ entries, onSelectEntry, onOpenSettings, onRefresh }) => {
+const JournalView: React.FC<Props> = ({ onSelectEntry }) => {
+  const [entries, setEntries] = useState<JournalEntry[]>([]);
   const [filteredEntries, setFilteredEntries] = useState<JournalEntry[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState<JournalEntry | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [filters, setFilters] = useState<EntryFilters>({});
   const [error, setError] = useState('');
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [initialLoad, setInitialLoad] = useState(true);
 
-  // Initialize filtered entries with all entries
+  const loadEntries = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const data = await fetchEntries(filters);
+      setEntries(data);
+      setFilteredEntries(data);
+      // Clear initial load flag after first successful load
+      setInitialLoad(false);
+    } catch (error: any) {
+      console.error('Failed to fetch entries:', error);
+      // Only show error if it's not the initial load with no entries
+      // This prevents showing the error when the user first opens the app
+      if (!initialLoad) {
+        setError('Failed to load memories. Please try again.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Load entries on initial render and when filters change
   useEffect(() => {
-    console.log("Entries received in JournalView:", entries);
-    setFilteredEntries(entries);
-    setLoading(false);
-  }, [entries]);
+    loadEntries();
+  }, [refreshTrigger, JSON.stringify(filters)]);
 
   // Apply search filter separately (client-side filtering)
   useEffect(() => {
@@ -58,8 +78,7 @@ const JournalView: React.FC<Props> = ({ entries, onSelectEntry, onOpenSettings, 
       });
       
       if (res.ok) {
-        // Trigger refresh from parent component
-        onRefresh();
+        setEntries(prev => prev.filter(e => e.entry_id !== id));
       } else {
         alert("Delete failed.");
       }
@@ -70,7 +89,13 @@ const JournalView: React.FC<Props> = ({ entries, onSelectEntry, onOpenSettings, 
   };
 
   const handleEditEntry = (entry: JournalEntry) => {
-    onSelectEntry(entry);
+    setSelectedEntry(entry);
+    setShowModal(true);
+  };
+
+  const handleEntrySaved = () => {
+    // Trigger a refresh of the entries
+    setRefreshTrigger(prev => prev + 1);
   };
 
   // Extract all unique tags from entries
@@ -86,21 +111,6 @@ const JournalView: React.FC<Props> = ({ entries, onSelectEntry, onOpenSettings, 
       ...prev,
       [key]: value
     }));
-    
-    // Apply filters client-side for now
-    let filtered = [...entries];
-    
-    if (value) {
-      if (key === 'tag') {
-        filtered = filtered.filter(entry => entry.tags?.includes(value));
-      } else if (key === 'privacy') {
-        filtered = filtered.filter(entry => entry.privacy === value);
-      } else if (key === 'author_id') {
-        filtered = filtered.filter(entry => entry.author_id === value);
-      }
-    }
-    
-    setFilteredEntries(filtered);
   };
 
   // Clear all filters
@@ -108,12 +118,11 @@ const JournalView: React.FC<Props> = ({ entries, onSelectEntry, onOpenSettings, 
     setFilters({});
     setSearch('');
     setShowFilters(false);
-    setFilteredEntries(entries);
   };
 
   // Retry loading entries
   const handleRetry = () => {
-    onRefresh();
+    setRefreshTrigger(prev => prev + 1);
   };
 
   return (
@@ -125,20 +134,16 @@ const JournalView: React.FC<Props> = ({ entries, onSelectEntry, onOpenSettings, 
             setShowModal(false);
             setSelectedEntry(null);
           }}
-          onEntrySaved={() => {
-            setShowModal(false);
-            setSelectedEntry(null);
-            onRefresh();
-          }}
+          onEntrySaved={handleEntrySaved}
         />
       )}
 
-      <div className="flex justify-center items-center mb-6">
+      <div className="flex justify-between items-center mb-4">
         <h2 className="text-2xl font-semibold text-clay-brown">Your Memories</h2>
         <button
-          className="absolute right-4 text-clay-brown hover:text-black transition"
+          className="text-clay-brown hover:text-black transition"
           aria-label="Settings"
-          onClick={onOpenSettings}
+          onClick={() => onSelectEntry(null)}
         >
           <Settings size={20} />
         </button>
@@ -281,7 +286,7 @@ const JournalView: React.FC<Props> = ({ entries, onSelectEntry, onOpenSettings, 
       {/* Error message with retry button */}
       {error && (
         <div className="mb-4 p-3 bg-blush-pink bg-opacity-30 text-red-500 text-sm rounded-xl flex justify-between items-center">
-          <span>Oops, we couldn't load your memories! Check your network and try again.</span>
+          <span>{error}</span>
           <button 
             onClick={handleRetry}
             className="text-clay-brown hover:text-black text-xs font-medium"
@@ -290,12 +295,6 @@ const JournalView: React.FC<Props> = ({ entries, onSelectEntry, onOpenSettings, 
           </button>
         </div>
       )}
-
-      {/* Debug info - remove in production */}
-      <div className="mb-4 p-2 bg-gray-100 text-xs rounded-xl">
-        <p>Debug: {entries.length} entries available</p>
-        <p>Filtered: {filteredEntries.length} entries shown</p>
-      </div>
 
       {/* Loading state */}
       {loading ? (
@@ -326,10 +325,13 @@ const JournalView: React.FC<Props> = ({ entries, onSelectEntry, onOpenSettings, 
         </div>
       )}
 
-      {/* New memory button - using clay-brown for better visibility */}
+      {/* New memory button */}
       <button
-        onClick={() => onSelectEntry(null)}
-        className="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-clay-brown hover:bg-blush-pink text-white rounded-full w-14 h-14 shadow-md flex items-center justify-center text-2xl transition-colors"
+        onClick={() => {
+          setSelectedEntry(null);
+          setShowModal(true);
+        }}
+        className="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-warm-sand hover:bg-blush-pink text-clay-brown rounded-full w-14 h-14 shadow-md flex items-center justify-center text-2xl transition-colors"
         title="New Memory"
       >
         +
@@ -339,3 +341,4 @@ const JournalView: React.FC<Props> = ({ entries, onSelectEntry, onOpenSettings, 
 };
 
 export default JournalView;
+
