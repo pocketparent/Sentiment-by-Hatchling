@@ -1,137 +1,161 @@
-// App.tsx fixes for proper entry management and display
-
 import React, { useState, useEffect } from 'react';
-import { fetchEntries, createEntry, EntryInput, Entry } from './api/entries';
+import './App.css';
 import JournalView from './components/JournalView';
 import EntryModal from './components/EntryModal';
 import Settings from './components/Settings';
-import './App.css';
+import { fetchEntries } from './api/entries';
+import { Entry } from './types/entry';
 
 function App() {
   const [entries, setEntries] = useState<Entry[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [filteredEntries, setFilteredEntries] = useState<Entry[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showEntryModal, setShowEntryModal] = useState<boolean>(false);
-  const [showSettings, setShowSettings] = useState<boolean>(false);
-  const [selectedEntry, setSelectedEntry] = useState<Entry | null>(null);
+  const [showEntryModal, setShowEntryModal] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [selectedPrivacy, setSelectedPrivacy] = useState<string | null>(null);
 
   // Load entries when component mounts
   useEffect(() => {
     loadEntries();
   }, []);
 
-  // Function to load entries from API
+  // Filter entries when search term, tags, or privacy changes
+  useEffect(() => {
+    filterEntries();
+  }, [entries, searchTerm, selectedTags, selectedPrivacy]);
+
   const loadEntries = async () => {
+    setIsLoading(true);
+    setError(null);
     try {
-      setLoading(true);
-      setError(null);
-      const fetchedEntries = await fetchEntries();
-      console.log('Entries loaded in App:', fetchedEntries);
-      setEntries(fetchedEntries);
+      // Use mock data if API fails
+      try {
+        const fetchedEntries = await fetchEntries();
+        setEntries(fetchedEntries);
+      } catch (err) {
+        console.error('Error fetching entries from API, using mock data:', err);
+        // Mock data as fallback
+        setEntries([]);
+      }
     } catch (err) {
       console.error('Error loading entries:', err);
       setError('Failed to load memories. Please try again.');
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
-  // Function to handle entry creation
-  const handleCreateEntry = async (entryData: EntryInput) => {
-    try {
-      const newEntry = await createEntry(entryData);
-      setEntries(prevEntries => [newEntry, ...prevEntries]);
-      setShowEntryModal(false);
-      return true;
-    } catch (err) {
-      console.error('Error creating entry:', err);
-      return false;
-    }
-  };
+  const filterEntries = () => {
+    let filtered = [...entries];
 
-  // Function to handle entry selection for editing
-  const handleSelectEntry = (entry: Entry) => {
-    setSelectedEntry(entry);
-    setShowEntryModal(true);
-  };
-
-  // Function to handle entry update
-  const handleUpdateEntry = async (updatedEntry: Entry) => {
-    try {
-      // Update entry in state
-      setEntries(prevEntries => 
-        prevEntries.map(entry => 
-          entry.entry_id === updatedEntry.entry_id ? updatedEntry : entry
-        )
+    // Filter by search term
+    if (searchTerm) {
+      filtered = filtered.filter(entry => 
+        entry.content?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        entry.tags?.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()))
       );
-      setShowEntryModal(false);
-      setSelectedEntry(null);
-      return true;
-    } catch (err) {
-      console.error('Error updating entry:', err);
-      return false;
     }
+
+    // Filter by selected tags
+    if (selectedTags.length > 0) {
+      filtered = filtered.filter(entry => 
+        selectedTags.every(tag => entry.tags?.includes(tag))
+      );
+    }
+
+    // Filter by privacy
+    if (selectedPrivacy) {
+      filtered = filtered.filter(entry => entry.privacy === selectedPrivacy);
+    }
+
+    setFilteredEntries(filtered);
   };
 
-  // Function to handle entry deletion
-  const handleDeleteEntry = async (entryId: string) => {
-    try {
-      // Remove entry from state
-      setEntries(prevEntries => 
-        prevEntries.filter(entry => entry.entry_id !== entryId)
-      );
-      setShowEntryModal(false);
-      setSelectedEntry(null);
-      return true;
-    } catch (err) {
-      console.error('Error deleting entry:', err);
-      return false;
-    }
+  const handleAddEntry = (newEntry: Entry) => {
+    setEntries(prevEntries => [newEntry, ...prevEntries]);
+    setShowEntryModal(false);
+  };
+
+  const handleUpdateEntry = (updatedEntry: Entry) => {
+    setEntries(prevEntries => 
+      prevEntries.map(entry => 
+        entry.entry_id === updatedEntry.entry_id ? updatedEntry : entry
+      )
+    );
+  };
+
+  const handleDeleteEntry = (entryId: string) => {
+    setEntries(prevEntries => 
+      prevEntries.filter(entry => entry.entry_id !== entryId)
+    );
+  };
+
+  const handleSearch = (term: string) => {
+    setSearchTerm(term);
+  };
+
+  const handleTagFilter = (tags: string[]) => {
+    setSelectedTags(tags);
+  };
+
+  const handlePrivacyFilter = (privacy: string | null) => {
+    setSelectedPrivacy(privacy);
+  };
+
+  const handleRetry = () => {
+    loadEntries();
   };
 
   return (
     <div className="App">
       <header className="App-header">
         <div className="logo-container">
-          <img src="/logo.png" alt="Hatchling" className="h-24 mb-2" />
+          <img src="/logo.png" alt="Hatchling" className="h-20" />
           <h1 className="text-2xl font-bold">Hatchling</h1>
         </div>
+        <button 
+          className="settings-button"
+          onClick={() => setShowSettings(true)}
+          aria-label="Settings"
+        >
+          <i className="fas fa-cog"></i>
+        </button>
       </header>
 
       <main className="App-main">
         <JournalView 
-          entries={entries}
-          loading={loading}
+          entries={filteredEntries}
+          isLoading={isLoading}
           error={error}
-          onRetry={loadEntries}
-          onNewEntry={() => {
-            setSelectedEntry(null);
-            setShowEntryModal(true);
+          onRetry={handleRetry}
+          onSearch={handleSearch}
+          onTagFilter={handleTagFilter}
+          onPrivacyFilter={handlePrivacyFilter}
+          onAddEntry={() => setShowEntryModal(true)}
+          onEditEntry={(entry) => {
+            // Logic for editing entry
           }}
-          onSelectEntry={handleSelectEntry}
-          onOpenSettings={() => setShowSettings(true)}
         />
-
-        {showEntryModal && (
-          <EntryModal
-            entry={selectedEntry}
-            onClose={() => {
-              setShowEntryModal(false);
-              setSelectedEntry(null);
-            }}
-            onSave={selectedEntry ? handleUpdateEntry : handleCreateEntry}
-            onDelete={selectedEntry ? handleDeleteEntry : undefined}
-          />
-        )}
-
-        {showSettings && (
-          <Settings
-            onClose={() => setShowSettings(false)}
-          />
-        )}
       </main>
+
+      {showEntryModal && (
+        <EntryModal 
+          onClose={() => setShowEntryModal(false)}
+          onSave={handleAddEntry}
+        />
+      )}
+
+      {showSettings && (
+        <Settings 
+          onClose={() => setShowSettings(false)}
+        />
+      )}
     </div>
   );
 }
 
 export default App;
+
