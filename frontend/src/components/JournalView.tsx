@@ -1,10 +1,10 @@
-import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
 import { JournalEntry } from '../types';
+import { EntryFilters } from '../types/entry';
 import { fetchEntries } from '../api/entries';
 import EntryCard from './EntryCard';
 import EmptyState from './EmptyState';
-import { Settings, Trash, Search, Tag, Filter } from 'lucide-react';
+import { Settings, Trash, Search, Tag, Filter, Calendar, User, Eye } from 'lucide-react';
 import EntryModal from './EntryModal';
 
 interface Props {
@@ -19,60 +19,57 @@ const JournalView: React.FC<Props> = ({ onSelectEntry }) => {
   const [showModal, setShowModal] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState<JournalEntry | null>(null);
   const [showFilters, setShowFilters] = useState(false);
-  const [tagFilter, setTagFilter] = useState<string>('');
-  const [privacyFilter, setPrivacyFilter] = useState<string>('');
-  const navigate = useNavigate();
+  const [filters, setFilters] = useState<EntryFilters>({});
+  const [error, setError] = useState('');
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   const loadEntries = async () => {
+    setLoading(true);
+    setError('');
     try {
-      const data = await fetchEntries();
+      const data = await fetchEntries(filters);
       setEntries(data);
       setFilteredEntries(data);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to fetch entries:', error);
+      setError('Failed to load memories. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
+  // Load entries on initial render and when filters change
   useEffect(() => {
     loadEntries();
-  }, []);
+  }, [refreshTrigger, JSON.stringify(filters)]);
 
+  // Apply search filter separately (client-side filtering)
   useEffect(() => {
-    // Apply all filters
-    let result = [...entries];
-    
-    // Apply search filter
-    if (search.trim() !== '') {
+    if (search.trim() === '') {
+      setFilteredEntries(entries);
+    } else {
       const lowerSearch = search.toLowerCase();
-      result = result.filter((entry) =>
-        entry.content?.toLowerCase().includes(lowerSearch) ||
-        entry.tags?.some(tag => tag.toLowerCase().includes(lowerSearch))
+      setFilteredEntries(
+        entries.filter((entry) =>
+          entry.content?.toLowerCase().includes(lowerSearch) ||
+          entry.tags?.some(tag => tag.toLowerCase().includes(lowerSearch))
+        )
       );
     }
-    
-    // Apply tag filter
-    if (tagFilter) {
-      result = result.filter((entry) =>
-        entry.tags?.some(tag => tag.toLowerCase() === tagFilter.toLowerCase())
-      );
-    }
-    
-    // Apply privacy filter
-    if (privacyFilter) {
-      result = result.filter((entry) => entry.privacy === privacyFilter);
-    }
-    
-    setFilteredEntries(result);
-  }, [search, entries, tagFilter, privacyFilter]);
+  }, [search, entries]);
 
   const handleDelete = async (id: string) => {
     const confirmed = window.confirm("Delete this memory?");
     if (!confirmed) return;
 
     try {
-      const res = await fetch(`/api/entry/${id}`, { method: "DELETE" });
+      const res = await fetch(`/api/entry/${id}`, { 
+        method: "DELETE",
+        headers: {
+          'X-User-ID': localStorage.getItem('userId') || 'demo'
+        }
+      });
+      
       if (res.ok) {
         setEntries(prev => prev.filter(e => e.entry_id !== id));
       } else {
@@ -89,6 +86,11 @@ const JournalView: React.FC<Props> = ({ onSelectEntry }) => {
     setShowModal(true);
   };
 
+  const handleEntrySaved = () => {
+    // Trigger a refresh of the entries
+    setRefreshTrigger(prev => prev + 1);
+  };
+
   // Extract all unique tags from entries
   const allTags = Array.from(
     new Set(
@@ -96,9 +98,17 @@ const JournalView: React.FC<Props> = ({ onSelectEntry }) => {
     )
   ).sort();
 
+  // Update a specific filter
+  const updateFilter = (key: keyof EntryFilters, value: string | undefined) => {
+    setFilters(prev => ({
+      ...prev,
+      [key]: value
+    }));
+  };
+
+  // Clear all filters
   const clearFilters = () => {
-    setTagFilter('');
-    setPrivacyFilter('');
+    setFilters({});
     setSearch('');
     setShowFilters(false);
   };
@@ -112,7 +122,7 @@ const JournalView: React.FC<Props> = ({ onSelectEntry }) => {
             setShowModal(false);
             setSelectedEntry(null);
           }}
-          onEntrySaved={loadEntries}
+          onEntrySaved={handleEntrySaved}
         />
       )}
 
@@ -121,12 +131,13 @@ const JournalView: React.FC<Props> = ({ onSelectEntry }) => {
         <button
           className="text-clay-brown hover:text-black transition"
           aria-label="Settings"
-          onClick={() => navigate('/settings')}
+          onClick={() => onSelectEntry(null)}
         >
           <Settings size={20} />
         </button>
       </div>
 
+      {/* Search bar */}
       <div className="relative mb-4">
         <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
           <Search size={16} className="text-dusty-taupe" />
@@ -139,7 +150,9 @@ const JournalView: React.FC<Props> = ({ onSelectEntry }) => {
           onChange={(e) => setSearch(e.target.value)}
         />
         <button 
-          className="absolute inset-y-0 right-3 flex items-center text-dusty-taupe hover:text-clay-brown"
+          className={`absolute inset-y-0 right-3 flex items-center ${
+            showFilters ? 'text-clay-brown' : 'text-dusty-taupe'
+          } hover:text-clay-brown`}
           onClick={() => setShowFilters(!showFilters)}
         >
           <Filter size={16} />
@@ -166,8 +179,8 @@ const JournalView: React.FC<Props> = ({ onSelectEntry }) => {
                 <Tag size={12} className="mr-1" /> Tag
               </label>
               <select
-                value={tagFilter}
-                onChange={(e) => setTagFilter(e.target.value)}
+                value={filters.tag || ''}
+                onChange={(e) => updateFilter('tag', e.target.value || undefined)}
                 className="w-full rounded-xl border border-warm-sand px-3 py-1 text-sm bg-white focus:border-blush-pink focus:ring-1 focus:ring-blush-pink"
               >
                 <option value="">All tags</option>
@@ -177,16 +190,57 @@ const JournalView: React.FC<Props> = ({ onSelectEntry }) => {
               </select>
             </div>
             
+            {/* Date range filter */}
+            <div>
+              <label className="block text-xs text-dusty-taupe mb-1 flex items-center">
+                <Calendar size={12} className="mr-1" /> Date Range
+              </label>
+              <div className="flex space-x-2">
+                <input
+                  type="date"
+                  value={filters.start_date || ''}
+                  onChange={(e) => updateFilter('start_date', e.target.value || undefined)}
+                  className="w-1/2 rounded-xl border border-warm-sand px-3 py-1 text-sm bg-white focus:border-blush-pink focus:ring-1 focus:ring-blush-pink"
+                  placeholder="From"
+                />
+                <input
+                  type="date"
+                  value={filters.end_date || ''}
+                  onChange={(e) => updateFilter('end_date', e.target.value || undefined)}
+                  className="w-1/2 rounded-xl border border-warm-sand px-3 py-1 text-sm bg-white focus:border-blush-pink focus:ring-1 focus:ring-blush-pink"
+                  placeholder="To"
+                />
+              </div>
+            </div>
+            
+            {/* Author filter */}
+            <div>
+              <label className="block text-xs text-dusty-taupe mb-1 flex items-center">
+                <User size={12} className="mr-1" /> Author
+              </label>
+              <select
+                value={filters.author_id || ''}
+                onChange={(e) => updateFilter('author_id', e.target.value || undefined)}
+                className="w-full rounded-xl border border-warm-sand px-3 py-1 text-sm bg-white focus:border-blush-pink focus:ring-1 focus:ring-blush-pink"
+              >
+                <option value="">All authors</option>
+                <option value="demo">You</option>
+                {/* Add other authors dynamically if needed */}
+              </select>
+            </div>
+            
             {/* Privacy filter */}
             <div>
-              <label className="block text-xs text-dusty-taupe mb-1">Privacy</label>
+              <label className="block text-xs text-dusty-taupe mb-1 flex items-center">
+                <Eye size={12} className="mr-1" /> Privacy
+              </label>
               <div className="flex space-x-2">
                 <label className="flex items-center">
                   <input
                     type="radio"
                     name="privacy-filter"
-                    checked={privacyFilter === ''}
-                    onChange={() => setPrivacyFilter('')}
+                    checked={!filters.privacy}
+                    onChange={() => updateFilter('privacy', undefined)}
                     className="mr-1 text-clay-brown focus:ring-blush-pink"
                   />
                   <span className="text-xs">All</span>
@@ -195,8 +249,8 @@ const JournalView: React.FC<Props> = ({ onSelectEntry }) => {
                   <input
                     type="radio"
                     name="privacy-filter"
-                    checked={privacyFilter === 'private'}
-                    onChange={() => setPrivacyFilter('private')}
+                    checked={filters.privacy === 'private'}
+                    onChange={() => updateFilter('privacy', 'private')}
                     className="mr-1 text-clay-brown focus:ring-blush-pink"
                   />
                   <span className="text-xs">Private</span>
@@ -205,8 +259,8 @@ const JournalView: React.FC<Props> = ({ onSelectEntry }) => {
                   <input
                     type="radio"
                     name="privacy-filter"
-                    checked={privacyFilter === 'shared'}
-                    onChange={() => setPrivacyFilter('shared')}
+                    checked={filters.privacy === 'shared'}
+                    onChange={() => updateFilter('privacy', 'shared')}
                     className="mr-1 text-clay-brown focus:ring-blush-pink"
                   />
                   <span className="text-xs">Shared</span>
@@ -217,6 +271,14 @@ const JournalView: React.FC<Props> = ({ onSelectEntry }) => {
         </div>
       )}
 
+      {/* Error message */}
+      {error && (
+        <div className="mb-4 p-3 bg-blush-pink bg-opacity-30 text-red-500 text-sm rounded-xl">
+          {error}
+        </div>
+      )}
+
+      {/* Loading state */}
       {loading ? (
         <div className="flex justify-center items-center h-40">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-clay-brown"></div>
