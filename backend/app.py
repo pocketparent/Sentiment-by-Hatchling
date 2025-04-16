@@ -23,7 +23,7 @@ from routes.auth import auth_bp
 from routes.invite import invite_bp
 from routes.export import export_bp
 from routes.nudge import nudge_bp
-from stripe_webhooks import stripe_bp
+from routes.stripe_webhooks import stripe_webhooks_bp
 
 # ✅ Create Flask app
 app = Flask(__name__)
