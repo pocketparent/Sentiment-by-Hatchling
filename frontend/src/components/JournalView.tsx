@@ -9,9 +9,10 @@ import EntryModal from './EntryModal';
 
 interface Props {
   onSelectEntry: (entry: JournalEntry | null) => void;
+  onOpenSettings: () => void;
 }
 
-const JournalView: React.FC<Props> = ({ onSelectEntry }) => {
+const JournalView: React.FC<Props> = ({ onSelectEntry, onOpenSettings }) => {
   const [entries, setEntries] = useState<JournalEntry[]>([]);
   const [filteredEntries, setFilteredEntries] = useState<JournalEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -38,7 +39,7 @@ const JournalView: React.FC<Props> = ({ onSelectEntry }) => {
       // Only show error if it's not the initial load with no entries
       // This prevents showing the error when the user first opens the app
       if (!initialLoad) {
-        setError('Failed to load memories. Please try again.');
+        setError('Oops, we couldn\'t load your memories! Check your network and try again.');
       }
     } finally {
       setLoading(false);
@@ -138,12 +139,12 @@ const JournalView: React.FC<Props> = ({ onSelectEntry }) => {
         />
       )}
 
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-2xl font-semibold text-clay-brown">Your Memories</h2>
+      <div className="flex justify-center items-center mb-6">
+        <h2 className="text-2xl font-semibold text-clay-brown">Memory Journal</h2>
         <button
-          className="text-clay-brown hover:text-black transition"
+          className="absolute right-4 text-clay-brown hover:text-black transition"
           aria-label="Settings"
-          onClick={() => onSelectEntry(null)}
+          onClick={onOpenSettings}
         >
           <Settings size={20} />
         </button>
@@ -325,13 +326,13 @@ const JournalView: React.FC<Props> = ({ onSelectEntry }) => {
         </div>
       )}
 
-      {/* New memory button */}
+      {/* New memory button - using clay-brown for better visibility */}
       <button
         onClick={() => {
           setSelectedEntry(null);
           setShowModal(true);
         }}
-        className="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-warm-sand hover:bg-blush-pink text-clay-brown rounded-full w-14 h-14 shadow-md flex items-center justify-center text-2xl transition-colors"
+        className="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-clay-brown hover:bg-blush-pink text-white rounded-full w-14 h-14 shadow-md flex items-center justify-center text-2xl transition-colors"
         title="New Memory"
       >
         +
