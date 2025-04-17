@@ -7,3 +7,5 @@ gunicorn
 python-dotenv
 requests
 twilio
+reportlab
+pillow
