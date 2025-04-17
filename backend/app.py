@@ -24,6 +24,9 @@ from routes.invite import invite_bp
 from routes.export import export_bp
 from routes.nudge import nudge_bp
 from routes.stripe_webhooks import stripe_bp
+from routes.sms import sms_bp
+from routes.stripe_routes import stripe_routes_bp
+from routes.admin import admin_bp
 
 # ✅ Create Flask app
 app = Flask(__name__)
@@ -61,6 +64,9 @@ app.register_blueprint(invite_bp, url_prefix="/api/invite")
 app.register_blueprint(export_bp, url_prefix="/api/export")
 app.register_blueprint(nudge_bp, url_prefix="/api/nudge")
 app.register_blueprint(stripe_bp, url_prefix="/stripe")
+app.register_blueprint(sms_bp, url_prefix="/api/sms")
+app.register_blueprint(stripe_routes_bp, url_prefix="/api/subscription")
+app.register_blueprint(admin_bp, url_prefix="/api/admin")
 
 # Log registered routes
 logger.info("Registered routes:")

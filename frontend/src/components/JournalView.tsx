@@ -5,6 +5,7 @@ import EntryCard from './EntryCard';
 import EmptyState from './EmptyState';
 import { Settings, Trash, Search, Tag, Filter, Calendar, User, Eye } from 'lucide-react';
 import EntryModal from './EntryModal';
+import { deleteEntry } from '../api/entries';
 
 interface Props {
   entries: JournalEntry[];
@@ -49,14 +50,9 @@ const JournalView: React.FC<Props> = ({ entries, onSelectEntry, onOpenSettings, 
     if (!confirmed) return;
 
     try {
-      const res = await fetch(`/api/entry/${id}`, { 
-        method: "DELETE",
-        headers: {
-          'X-User-ID': localStorage.getItem('userId') || 'demo'
-        }
-      });
+      const result = await deleteEntry(id);
       
-      if (res.ok) {
+      if (result.success) {
         // Trigger refresh from parent component
         onRefresh();
       } else {

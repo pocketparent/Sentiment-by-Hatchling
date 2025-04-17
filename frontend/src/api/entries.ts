@@ -1,3 +1,4 @@
+import axiosInstance from './axios/axiosInstance';
 import { JournalEntry } from '../types';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL
@@ -5,33 +6,19 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL
   : '/api/entry';
 
 export async function fetchEntries(filters = {}): Promise<JournalEntry[]> {
-  // Build query string from filters
-  const queryParams = new URLSearchParams();
-  
-  Object.entries(filters).forEach(([key, value]) => {
-    if (value) {
-      queryParams.append(key, value.toString());
-    }
-  });
-  
-  const queryString = queryParams.toString();
-  const url = queryString ? `${API_BASE}?${queryString}` : API_BASE;
-  
   try {
-    const response = await fetch(url, {
-      headers: {
-        'X-User-ID': localStorage.getItem('userId') || 'demo'
+    // Build query params from filters
+    const params = {};
+    
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value) {
+        params[key] = value.toString();
       }
     });
     
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('❌ Error fetching entries:', errorText);
-      throw new Error('Failed to fetch journal entries');
-    }
+    const response = await axiosInstance.get(API_BASE, { params });
     
-    const data = await response.json();
-    return data.entries || [];
+    return response.data.entries || [];
   } catch (error) {
     console.error('❌ Fetch entries error:', error);
     throw error;
@@ -71,25 +58,14 @@ export async function createEntry(formData: FormData): Promise<JournalEntry> {
       console.log(`📦 ${key}:`, value);
     }
 
-    const response = await fetch(API_BASE, {
-      method: 'POST',
-      body: formData,
+    const response = await axiosInstance.post(API_BASE, formData, {
       headers: {
-        'X-User-ID': localStorage.getItem('userId') || 'demo'
+        'Content-Type': 'multipart/form-data',
       }
     });
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => null) || await response.text();
-      console.error('❌ Server error response:', errorData);
-      throw new Error(typeof errorData === 'object' && errorData.error 
-        ? errorData.error 
-        : 'Failed to create entry');
-    }
-
-    const result = await response.json();
-    console.log('✅ Entry created successfully:', result);
-    return result.entry;
+    console.log('✅ Entry created successfully:', response.data);
+    return response.data.entry;
   } catch (error) {
     console.error('❌ Create entry error:', error);
     throw error;
@@ -109,25 +85,14 @@ export async function updateEntry(id: string, formData: FormData): Promise<Journ
       console.log(`📦 ${key}:`, value);
     }
 
-    const response = await fetch(`${API_BASE}/${id}`, {
-      method: 'PATCH',
-      body: formData,
+    const response = await axiosInstance.patch(`${API_BASE}/${id}`, formData, {
       headers: {
-        'X-User-ID': localStorage.getItem('userId') || 'demo'
+        'Content-Type': 'multipart/form-data',
       }
     });
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => null) || await response.text();
-      console.error('❌ Server error response:', errorData);
-      throw new Error(typeof errorData === 'object' && errorData.error 
-        ? errorData.error 
-        : 'Failed to update entry');
-    }
-
-    const result = await response.json();
-    console.log('✅ Entry updated successfully:', result);
-    return result.entry;
+    console.log('✅ Entry updated successfully:', response.data);
+    return response.data.entry;
   } catch (error) {
     console.error('❌ Update entry error:', error);
     throw error;
@@ -142,23 +107,9 @@ export async function deleteEntry(id: string): Promise<{ success: boolean }> {
     
     console.log(`🗑️ Deleting entry ${id}`);
     
-    const response = await fetch(`${API_BASE}/${id}`, {
-      method: 'DELETE',
-      headers: {
-        'X-User-ID': localStorage.getItem('userId') || 'demo'
-      }
-    });
+    const response = await axiosInstance.delete(`${API_BASE}/${id}`);
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => null) || await response.text();
-      console.error('❌ Server error response:', errorData);
-      throw new Error(typeof errorData === 'object' && errorData.error 
-        ? errorData.error 
-        : 'Failed to delete entry');
-    }
-
-    const result = await response.json();
-    console.log('✅ Entry deleted successfully:', result);
+    console.log('✅ Entry deleted successfully:', response.data);
     return { success: true };
   } catch (error) {
     console.error('❌ Delete entry error:', error);
@@ -174,22 +125,9 @@ export async function getEntryById(id: string): Promise<JournalEntry> {
     
     console.log(`🔍 Fetching entry ${id}`);
     
-    const response = await fetch(`${API_BASE}/${id}`, {
-      headers: {
-        'X-User-ID': localStorage.getItem('userId') || 'demo'
-      }
-    });
+    const response = await axiosInstance.get(`${API_BASE}/${id}`);
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => null) || await response.text();
-      console.error('❌ Server error response:', errorData);
-      throw new Error(typeof errorData === 'object' && errorData.error 
-        ? errorData.error 
-        : 'Failed to fetch entry');
-    }
-
-    const result = await response.json();
-    return result.entry;
+    return response.data.entry;
   } catch (error) {
     console.error('❌ Get entry error:', error);
     throw error;
@@ -234,24 +172,9 @@ export async function generateAITags(content: string): Promise<string[]> {
     return mockTags;
     
     /* Uncomment this when backend endpoint is ready
-    const response = await fetch(`${API_BASE}/generate-tags`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-User-ID': localStorage.getItem('userId') || 'demo'
-      },
-      body: JSON.stringify({ content })
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => null) || await response.text();
-      console.error('❌ AI tag generation failed:', errorData);
-      return [];
-    }
-
-    const result = await response.json();
-    console.log('✅ AI tags generated:', result.tags);
-    return result.tags || [];
+    const response = await axiosInstance.post(`${API_BASE}/generate-tags`, { content });
+    console.log('✅ AI tags generated:', response.data.tags);
+    return response.data.tags || [];
     */
   } catch (error) {
     console.error('❌ AI tag generation error:', error);

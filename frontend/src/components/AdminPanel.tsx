@@ -1,428 +1,309 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Users, 
-  Settings as SettingsIcon, 
-  User, 
-  Bell, 
-  Shield, 
-  Search,
-  Filter,
-  RefreshCw,
-  UserPlus,
-  Mail,
-  AlertTriangle
-} from 'lucide-react';
-import { UserRole, getRoleIcon, getRoleName } from './RoleBasedPermissions';
+import axiosInstance from '../api/axios/axiosInstance';
+import { Search, Users, CreditCard, BarChart2, HelpCircle, Shield, FileText, Bell } from 'lucide-react';
 
 interface AdminPanelProps {
-  onClose: () => void;
+  userId: string;
+  isAdmin: boolean;
 }
 
-interface AdminUser {
-  id: string;
-  name: string;
-  email: string;
-  phone: string;
-  role: UserRole;
-  status: 'active' | 'inactive' | 'pending';
-  lastActive: string;
-  journalCount: number;
-  subscription: 'trial' | 'basic' | 'premium' | 'none';
-}
+const AdminPanel: React.FC<AdminPanelProps> = ({ userId, isAdmin }) => {
+  const [activeTab, setActiveTab] = useState('users');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [users, setUsers] = useState([]);
+  const [subscriptions, setSubscriptions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-const mockUsers: AdminUser[] = [
-  {
-    id: '1',
-    name: 'Jane Smith',
-    email: 'jane@example.com',
-    phone: '+1234567890',
-    role: 'parent',
-    status: 'active',
-    lastActive: '2025-04-15T10:30:00Z',
-    journalCount: 42,
-    subscription: 'premium'
-  },
-  {
-    id: '2',
-    name: 'John Doe',
-    email: 'john@example.com',
-    phone: '+1987654321',
-    role: 'co-parent',
-    status: 'active',
-    lastActive: '2025-04-14T15:45:00Z',
-    journalCount: 18,
-    subscription: 'basic'
-  },
-  {
-    id: '3',
-    name: 'Sarah Johnson',
-    email: 'sarah@example.com',
-    phone: '+1122334455',
-    role: 'caregiver',
-    status: 'inactive',
-    lastActive: '2025-03-20T09:15:00Z',
-    journalCount: 5,
-    subscription: 'none'
-  },
-  {
-    id: '4',
-    name: 'Michael Brown',
-    email: 'michael@example.com',
-    phone: '+1555666777',
-    role: 'parent',
-    status: 'pending',
-    lastActive: '2025-04-16T08:00:00Z',
-    journalCount: 0,
-    subscription: 'trial'
-  }
-];
-
-interface ErrorLog {
-  id: string;
-  timestamp: string;
-  type: 'sms' | 'ai' | 'auth' | 'payment';
-  message: string;
-  resolved: boolean;
-}
-
-const mockErrorLogs: ErrorLog[] = [
-  {
-    id: '1',
-    timestamp: '2025-04-16T12:34:56Z',
-    type: 'sms',
-    message: 'Failed to send SMS to +1234567890: Invalid number format',
-    resolved: false
-  },
-  {
-    id: '2',
-    timestamp: '2025-04-15T10:22:33Z',
-    type: 'ai',
-    message: 'AI tag generation failed for entry #123: Content too short',
-    resolved: true
-  },
-  {
-    id: '3',
-    timestamp: '2025-04-14T08:11:22Z',
-    type: 'auth',
-    message: 'Too many failed login attempts for user john@example.com',
-    resolved: false
-  },
-  {
-    id: '4',
-    timestamp: '2025-04-13T16:55:44Z',
-    type: 'payment',
-    message: 'Payment failed for subscription renewal: Card declined',
-    resolved: true
-  }
-];
-
-const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
-  const [activeTab, setActiveTab] = useState<'users' | 'logs'>('users');
-  const [users, setUsers] = useState<AdminUser[]>(mockUsers);
-  const [errorLogs, setErrorLogs] = useState<ErrorLog[]>(mockErrorLogs);
-  const [userFilter, setUserFilter] = useState<string>('');
-  const [roleFilter, setRoleFilter] = useState<UserRole | ''>('');
-  const [statusFilter, setStatusFilter] = useState<string>('');
-  const [subscriptionFilter, setSubscriptionFilter] = useState<string>('');
-  const [isLoading, setIsLoading] = useState(false);
-
-  // Filter users based on search and filters
-  const filteredUsers = users.filter(user => {
-    const matchesSearch = userFilter === '' || 
-      user.name.toLowerCase().includes(userFilter.toLowerCase()) ||
-      user.email.toLowerCase().includes(userFilter.toLowerCase()) ||
-      user.phone.includes(userFilter);
+  // Fetch admin data on component mount
+  useEffect(() => {
+    if (!isAdmin) return;
     
-    const matchesRole = roleFilter === '' || user.role === roleFilter;
-    const matchesStatus = statusFilter === '' || user.status === statusFilter;
-    const matchesSubscription = subscriptionFilter === '' || user.subscription === subscriptionFilter;
+    const fetchAdminData = async () => {
+      setLoading(true);
+      setError('');
+      
+      try {
+        // Fetch users data
+        const usersResponse = await axiosInstance.get('/api/admin/users');
+        setUsers(usersResponse.data.users || []);
+        
+        // Fetch subscriptions data
+        const subscriptionsResponse = await axiosInstance.get('/api/admin/subscriptions');
+        setSubscriptions(subscriptionsResponse.data.subscriptions || []);
+      } catch (err: any) {
+        console.error('Error fetching admin data:', err);
+        setError('Failed to load admin data. Please try again.');
+      } finally {
+        setLoading(false);
+      }
+    };
     
-    return matchesSearch && matchesRole && matchesStatus && matchesSubscription;
-  });
+    fetchAdminData();
+  }, [isAdmin]);
 
-  // Filter logs based on type
-  const [logTypeFilter, setLogTypeFilter] = useState<string>('');
-  const [logResolvedFilter, setLogResolvedFilter] = useState<string>('');
-  
-  const filteredLogs = errorLogs.filter(log => {
-    const matchesType = logTypeFilter === '' || log.type === logTypeFilter;
-    const matchesResolved = logResolvedFilter === '' || 
-      (logResolvedFilter === 'resolved' && log.resolved) ||
-      (logResolvedFilter === 'unresolved' && !log.resolved);
+  // Handle search
+  const handleSearch = async () => {
+    if (!searchQuery.trim()) return;
     
-    return matchesType && matchesResolved;
-  });
-
-  // Format date for display
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return new Intl.DateTimeFormat('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    }).format(date);
+    setLoading(true);
+    setError('');
+    
+    try {
+      const response = await axiosInstance.get(`/api/admin/search?q=${encodeURIComponent(searchQuery)}`);
+      
+      if (activeTab === 'users') {
+        setUsers(response.data.users || []);
+      } else if (activeTab === 'subscriptions') {
+        setSubscriptions(response.data.subscriptions || []);
+      }
+    } catch (err: any) {
+      console.error('Search error:', err);
+      setError('Search failed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // Simulate loading data
-  const refreshData = () => {
-    setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-    }, 1000);
-  };
-
-  // Simulate sending invite
-  const sendInvite = (userId: string) => {
-    alert(`Invite sent to user ${userId}`);
-    setUsers(prev => 
-      prev.map(user => 
-        user.id === userId 
-          ? { ...user, status: 'pending' } 
-          : user
-      )
+  // If not admin, show access denied
+  if (!isAdmin) {
+    return (
+      <div className="bg-white p-8 rounded-2xl shadow-sm border border-warm-sand max-w-4xl mx-auto">
+        <div className="text-center py-8">
+          <Shield className="w-16 h-16 text-red-500 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-clay-brown mb-2">Access Denied</h2>
+          <p className="text-dusty-taupe">You don't have permission to access the admin panel.</p>
+        </div>
+      </div>
     );
-  };
-
-  // Simulate resolving error
-  const resolveError = (errorId: string) => {
-    setErrorLogs(prev => 
-      prev.map(log => 
-        log.id === errorId 
-          ? { ...log, resolved: true } 
-          : log
-      )
-    );
-  };
+  }
 
   return (
-    <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4 md:p-0">
-      <div className="bg-soft-beige rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col shadow-xl">
-        {/* Header */}
-        <div className="bg-white p-4 border-b border-warm-sand flex justify-between items-center">
-          <h2 className="text-xl font-semibold text-clay-brown flex items-center">
-            <Shield size={20} className="mr-2" /> Admin Panel
-          </h2>
+    <div className="bg-white p-6 rounded-2xl shadow-sm border border-warm-sand max-w-6xl mx-auto">
+      <h2 className="text-2xl font-bold text-clay-brown mb-6">Admin Dashboard</h2>
+      
+      {/* Search bar */}
+      <div className="mb-6">
+        <div className="relative">
+          <input
+            type="text"
+            placeholder="Search users, subscriptions, or entries..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+            className="w-full border border-warm-sand rounded-xl pl-10 pr-4 py-2 focus:border-blush-pink focus:ring-1 focus:ring-blush-pink"
+          />
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <Search className="h-5 w-5 text-dusty-taupe" />
+          </div>
           <button
-            onClick={onClose}
-            className="text-dusty-taupe hover:text-clay-brown"
-            aria-label="Close"
+            onClick={handleSearch}
+            className="absolute inset-y-0 right-0 pr-3 flex items-center text-clay-brown hover:text-blush-pink"
           >
-            ×
+            Search
           </button>
         </div>
-        
-        {/* Tabs */}
-        <div className="bg-white border-b border-warm-sand flex">
+      </div>
+      
+      {/* Tabs */}
+      <div className="border-b border-warm-sand mb-6">
+        <nav className="flex -mb-px">
           <button
-            className={`px-4 py-3 text-sm font-medium flex items-center ${
-              activeTab === 'users' 
-                ? 'text-clay-brown border-b-2 border-clay-brown' 
-                : 'text-dusty-taupe hover:text-clay-brown'
-            }`}
             onClick={() => setActiveTab('users')}
-          >
-            <Users size={16} className="mr-2" /> Users
-          </button>
-          <button
-            className={`px-4 py-3 text-sm font-medium flex items-center ${
-              activeTab === 'logs' 
-                ? 'text-clay-brown border-b-2 border-clay-brown' 
-                : 'text-dusty-taupe hover:text-clay-brown'
+            className={`mr-8 py-4 px-1 border-b-2 font-medium text-sm flex items-center ${
+              activeTab === 'users'
+                ? 'border-clay-brown text-clay-brown'
+                : 'border-transparent text-dusty-taupe hover:text-clay-brown hover:border-warm-sand'
             }`}
-            onClick={() => setActiveTab('logs')}
           >
-            <AlertTriangle size={16} className="mr-2" /> Error Logs
+            <Users className="mr-2 h-5 w-5" />
+            Users & Accounts
           </button>
+          
+          <button
+            onClick={() => setActiveTab('subscriptions')}
+            className={`mr-8 py-4 px-1 border-b-2 font-medium text-sm flex items-center ${
+              activeTab === 'subscriptions'
+                ? 'border-clay-brown text-clay-brown'
+                : 'border-transparent text-dusty-taupe hover:text-clay-brown hover:border-warm-sand'
+            }`}
+          >
+            <CreditCard className="mr-2 h-5 w-5" />
+            Subscriptions & Billing
+          </button>
+          
+          <button
+            onClick={() => setActiveTab('usage')}
+            className={`mr-8 py-4 px-1 border-b-2 font-medium text-sm flex items-center ${
+              activeTab === 'usage'
+                ? 'border-clay-brown text-clay-brown'
+                : 'border-transparent text-dusty-taupe hover:text-clay-brown hover:border-warm-sand'
+            }`}
+          >
+            <BarChart2 className="mr-2 h-5 w-5" />
+            Usage & Engagement
+          </button>
+          
+          <button
+            onClick={() => setActiveTab('support')}
+            className={`mr-8 py-4 px-1 border-b-2 font-medium text-sm flex items-center ${
+              activeTab === 'support'
+                ? 'border-clay-brown text-clay-brown'
+                : 'border-transparent text-dusty-taupe hover:text-clay-brown hover:border-warm-sand'
+            }`}
+          >
+            <HelpCircle className="mr-2 h-5 w-5" />
+            Support
+          </button>
+          
+          <button
+            onClick={() => setActiveTab('security')}
+            className={`mr-8 py-4 px-1 border-b-2 font-medium text-sm flex items-center ${
+              activeTab === 'security'
+                ? 'border-clay-brown text-clay-brown'
+                : 'border-transparent text-dusty-taupe hover:text-clay-brown hover:border-warm-sand'
+            }`}
+          >
+            <Shield className="mr-2 h-5 w-5" />
+            Security
+          </button>
+          
+          <button
+            onClick={() => setActiveTab('reports')}
+            className={`mr-8 py-4 px-1 border-b-2 font-medium text-sm flex items-center ${
+              activeTab === 'reports'
+                ? 'border-clay-brown text-clay-brown'
+                : 'border-transparent text-dusty-taupe hover:text-clay-brown hover:border-warm-sand'
+            }`}
+          >
+            <FileText className="mr-2 h-5 w-5" />
+            Reports
+          </button>
+          
+          <button
+            onClick={() => setActiveTab('alerts')}
+            className={`py-4 px-1 border-b-2 font-medium text-sm flex items-center ${
+              activeTab === 'alerts'
+                ? 'border-clay-brown text-clay-brown'
+                : 'border-transparent text-dusty-taupe hover:text-clay-brown hover:border-warm-sand'
+            }`}
+          >
+            <Bell className="mr-2 h-5 w-5" />
+            Alerts
+          </button>
+        </nav>
+      </div>
+      
+      {/* Error message */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-xl mb-6">
+          {error}
         </div>
-        
-        {/* Content */}
-        <div className="flex-1 overflow-auto p-4">
-          {activeTab === 'users' ? (
+      )}
+      
+      {/* Loading state */}
+      {loading && (
+        <div className="flex justify-center items-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-clay-brown"></div>
+          <span className="ml-2 text-dusty-taupe">Loading...</span>
+        </div>
+      )}
+      
+      {/* Tab content */}
+      {!loading && (
+        <div className="py-4">
+          {/* Users & Accounts tab */}
+          {activeTab === 'users' && (
             <div>
-              {/* User filters */}
-              <div className="bg-white rounded-xl p-4 mb-4 border border-warm-sand">
-                <div className="flex flex-wrap gap-2 items-center">
-                  {/* Search */}
-                  <div className="relative flex-1 min-w-[200px]">
-                    <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
-                      <Search size={14} className="text-dusty-taupe" />
-                    </div>
-                    <input
-                      type="text"
-                      placeholder="Search users..."
-                      value={userFilter}
-                      onChange={(e) => setUserFilter(e.target.value)}
-                      className="w-full rounded-lg border border-warm-sand pl-9 pr-3 py-1.5 text-sm placeholder-dusty-taupe bg-white focus:border-blush-pink focus:ring-1 focus:ring-blush-pink"
-                    />
-                  </div>
-                  
-                  {/* Role filter */}
-                  <div>
-                    <select
-                      value={roleFilter}
-                      onChange={(e) => setRoleFilter(e.target.value as UserRole | '')}
-                      className="rounded-lg border border-warm-sand px-3 py-1.5 text-sm bg-white focus:border-blush-pink focus:ring-1 focus:ring-blush-pink"
-                    >
-                      <option value="">All roles</option>
-                      <option value="parent">Parent</option>
-                      <option value="co-parent">Co-Parent</option>
-                      <option value="caregiver">Caregiver</option>
-                      <option value="admin">Admin</option>
-                    </select>
-                  </div>
-                  
-                  {/* Status filter */}
-                  <div>
-                    <select
-                      value={statusFilter}
-                      onChange={(e) => setStatusFilter(e.target.value)}
-                      className="rounded-lg border border-warm-sand px-3 py-1.5 text-sm bg-white focus:border-blush-pink focus:ring-1 focus:ring-blush-pink"
-                    >
-                      <option value="">All statuses</option>
-                      <option value="active">Active</option>
-                      <option value="inactive">Inactive</option>
-                      <option value="pending">Pending</option>
-                    </select>
-                  </div>
-                  
-                  {/* Subscription filter */}
-                  <div>
-                    <select
-                      value={subscriptionFilter}
-                      onChange={(e) => setSubscriptionFilter(e.target.value)}
-                      className="rounded-lg border border-warm-sand px-3 py-1.5 text-sm bg-white focus:border-blush-pink focus:ring-1 focus:ring-blush-pink"
-                    >
-                      <option value="">All subscriptions</option>
-                      <option value="trial">Trial</option>
-                      <option value="basic">Basic</option>
-                      <option value="premium">Premium</option>
-                      <option value="none">None</option>
-                    </select>
-                  </div>
-                  
-                  {/* Refresh button */}
-                  <button
-                    onClick={refreshData}
-                    className={`rounded-lg border border-warm-sand px-3 py-1.5 text-sm bg-white text-clay-brown hover:bg-blush-pink transition-colors flex items-center ${
-                      isLoading ? 'opacity-50 cursor-not-allowed' : ''
-                    }`}
-                    disabled={isLoading}
-                  >
-                    <RefreshCw size={14} className={`mr-1 ${isLoading ? 'animate-spin' : ''}`} />
-                    Refresh
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold text-clay-brown">User Accounts</h3>
+                <div className="flex space-x-2">
+                  <select className="border border-warm-sand rounded-lg px-3 py-1 text-sm bg-white focus:border-blush-pink focus:ring-1 focus:ring-blush-pink">
+                    <option value="">All Plans</option>
+                    <option value="trial">Trial</option>
+                    <option value="monthly">Monthly</option>
+                    <option value="annual">Annual</option>
+                    <option value="cancelled">Cancelled</option>
+                  </select>
+                  <button className="bg-clay-brown text-white rounded-lg px-3 py-1 text-sm hover:bg-blush-pink transition-colors">
+                    Export CSV
                   </button>
                 </div>
               </div>
               
               {/* Users table */}
-              <div className="bg-white rounded-xl border border-warm-sand overflow-hidden">
+              <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-warm-sand">
-                  <thead className="bg-soft-beige">
+                  <thead>
                     <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-clay-brown uppercase tracking-wider">
+                      <th className="px-4 py-3 text-left text-xs font-medium text-dusty-taupe uppercase tracking-wider">
                         User
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-clay-brown uppercase tracking-wider">
-                        Role
+                      <th className="px-4 py-3 text-left text-xs font-medium text-dusty-taupe uppercase tracking-wider">
+                        Email
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-clay-brown uppercase tracking-wider">
+                      <th className="px-4 py-3 text-left text-xs font-medium text-dusty-taupe uppercase tracking-wider">
+                        Plan
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-dusty-taupe uppercase tracking-wider">
                         Status
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-clay-brown uppercase tracking-wider">
-                        Last Active
+                      <th className="px-4 py-3 text-left text-xs font-medium text-dusty-taupe uppercase tracking-wider">
+                        Joined
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-clay-brown uppercase tracking-wider">
-                        Subscription
-                      </th>
-                      <th className="px-4 py-3 text-right text-xs font-medium text-clay-brown uppercase tracking-wider">
+                      <th className="px-4 py-3 text-left text-xs font-medium text-dusty-taupe uppercase tracking-wider">
                         Actions
                       </th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-warm-sand">
-                    {isLoading ? (
+                    {users.length === 0 ? (
                       <tr>
                         <td colSpan={6} className="px-4 py-8 text-center text-dusty-taupe">
-                          <div className="flex justify-center items-center">
-                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-clay-brown"></div>
-                            <span className="ml-2">Loading users...</span>
-                          </div>
-                        </td>
-                      </tr>
-                    ) : filteredUsers.length === 0 ? (
-                      <tr>
-                        <td colSpan={6} className="px-4 py-8 text-center text-dusty-taupe">
-                          No users found matching your filters
+                          No users found. Try a different search.
                         </td>
                       </tr>
                     ) : (
-                      filteredUsers.map((user) => (
+                      users.map((user: any) => (
                         <tr key={user.id} className="hover:bg-soft-beige">
-                          <td className="px-4 py-3 whitespace-nowrap">
+                          <td className="px-4 py-4 whitespace-nowrap">
                             <div className="flex items-center">
-                              <div className="flex-shrink-0 h-8 w-8 rounded-full bg-blush-pink flex items-center justify-center text-clay-brown">
+                              <div className="h-10 w-10 rounded-full bg-blush-pink flex items-center justify-center text-white font-medium">
                                 {user.name.charAt(0)}
                               </div>
-                              <div className="ml-3">
+                              <div className="ml-4">
                                 <div className="text-sm font-medium text-clay-brown">{user.name}</div>
-                                <div className="text-xs text-dusty-taupe">{user.email}</div>
-                                <div className="text-xs text-dusty-taupe">{user.phone}</div>
+                                <div className="text-xs text-dusty-taupe">ID: {user.id}</div>
                               </div>
                             </div>
                           </td>
-                          <td className="px-4 py-3 whitespace-nowrap">
-                            <div className="flex items-center">
-                              {getRoleIcon(user.role)}
-                              <span className="ml-1 text-sm text-clay-brown">{getRoleName(user.role)}</span>
-                            </div>
+                          <td className="px-4 py-4 whitespace-nowrap text-sm text-dusty-taupe">
+                            {user.email}
                           </td>
-                          <td className="px-4 py-3 whitespace-nowrap">
+                          <td className="px-4 py-4 whitespace-nowrap">
+                            <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                              {user.plan}
+                            </span>
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap">
                             <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                              user.status === 'active' 
-                                ? 'bg-green-100 text-green-800' 
-                                : user.status === 'inactive'
-                                ? 'bg-red-100 text-red-800'
-                                : 'bg-yellow-100 text-yellow-800'
+                              user.status === 'active' ? 'bg-green-100 text-green-800' :
+                              user.status === 'trialing' ? 'bg-blue-100 text-blue-800' :
+                              'bg-red-100 text-red-800'
                             }`}>
                               {user.status}
                             </span>
-                            <div className="text-xs text-dusty-taupe mt-1">
-                              {user.journalCount} entries
-                            </div>
                           </td>
-                          <td className="px-4 py-3 whitespace-nowrap text-sm text-clay-brown">
-                            {formatDate(user.lastActive)}
+                          <td className="px-4 py-4 whitespace-nowrap text-sm text-dusty-taupe">
+                            {user.joined}
                           </td>
-                          <td className="px-4 py-3 whitespace-nowrap">
-                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                              user.subscription === 'premium' 
-                                ? 'bg-purple-100 text-purple-800' 
-                                : user.subscription === 'basic'
-                                ? 'bg-blue-100 text-blue-800'
-                                : user.subscription === 'trial'
-                                ? 'bg-yellow-100 text-yellow-800'
-                                : 'bg-gray-100 text-gray-800'
-                            }`}>
-                              {user.subscription}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 whitespace-nowrap text-right text-sm font-medium">
-                            <div className="flex justify-end space-x-2">
-                              <button
-                                onClick={() => sendInvite(user.id)}
-                                className="text-dusty-taupe hover:text-clay-brown"
-                                title="Send invite"
-                              >
-                                <Mail size={16} />
-                              </button>
-                              <button
-                                className="text-dusty-taupe hover:text-clay-brown"
-                                title="Edit user"
-                              >
-                                <SettingsIcon size={16} />
-                              </button>
-                            </div>
+                          <td className="px-4 py-4 whitespace-nowrap text-sm font-medium">
+                            <button className="text-clay-brown hover:text-blush-pink mr-3">
+                              View
+                            </button>
+                            <button className="text-clay-brown hover:text-blush-pink">
+                              Edit
+                            </button>
                           </td>
                         </tr>
                       ))
@@ -431,115 +312,170 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
                 </table>
               </div>
             </div>
-          ) : (
+          )}
+          
+          {/* Subscriptions & Billing tab */}
+          {activeTab === 'subscriptions' && (
             <div>
-              {/* Error log filters */}
-              <div className="bg-white rounded-xl p-4 mb-4 border border-warm-sand">
-                <div className="flex flex-wrap gap-2 items-center">
-                  {/* Type filter */}
-                  <div>
-                    <select
-                      value={logTypeFilter}
-                      onChange={(e) => setLogTypeFilter(e.target.value)}
-                      className="rounded-lg border border-warm-sand px-3 py-1.5 text-sm bg-white focus:border-blush-pink focus:ring-1 focus:ring-blush-pink"
-                    >
-                      <option value="">All types</option>
-                      <option value="sms">SMS</option>
-                      <option value="ai">AI</option>
-                      <option value="auth">Auth</option>
-                      <option value="payment">Payment</option>
-                    </select>
-                  </div>
-                  
-                  {/* Resolved filter */}
-                  <div>
-                    <select
-                      value={logResolvedFilter}
-                      onChange={(e) => setLogResolvedFilter(e.target.value)}
-                      className="rounded-lg border border-warm-sand px-3 py-1.5 text-sm bg-white focus:border-blush-pink focus:ring-1 focus:ring-blush-pink"
-                    >
-                      <option value="">All status</option>
-                      <option value="resolved">Resolved</option>
-                      <option value="unresolved">Unresolved</option>
-                    </select>
-                  </div>
-                  
-                  {/* Refresh button */}
-                  <button
-                    onClick={refreshData}
-                    className={`rounded-lg border border-warm-sand px-3 py-1.5 text-sm bg-white text-clay-brown hover:bg-blush-pink transition-colors flex items-center ${
-                      isLoading ? 'opacity-50 cursor-not-allowed' : ''
-                    }`}
-                    disabled={isLoading}
-                  >
-                    <RefreshCw size={14} className={`mr-1 ${isLoading ? 'animate-spin' : ''}`} />
-                    Refresh
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold text-clay-brown">Subscription Management</h3>
+                <div className="flex space-x-2">
+                  <select className="border border-warm-sand rounded-lg px-3 py-1 text-sm bg-white focus:border-blush-pink focus:ring-1 focus:ring-blush-pink">
+                    <option value="">All Statuses</option>
+                    <option value="active">Active</option>
+                    <option value="trialing">Trialing</option>
+                    <option value="past_due">Past Due</option>
+                    <option value="cancelled">Cancelled</option>
+                  </select>
+                  <button className="bg-clay-brown text-white rounded-lg px-3 py-1 text-sm hover:bg-blush-pink transition-colors">
+                    Export CSV
                   </button>
                 </div>
               </div>
               
-              {/* Error logs */}
-              <div className="space-y-3">
-                {isLoading ? (
-                  <div className="bg-white rounded-xl p-8 border border-warm-sand text-center">
-                    <div className="flex justify-center items-center">
-                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-clay-brown"></div>
-                      <span className="ml-2 text-dusty-taupe">Loading error logs...</span>
-                    </div>
-                  </div>
-                ) : filteredLogs.length === 0 ? (
-                  <div className="bg-white rounded-xl p-8 border border-warm-sand text-center text-dusty-taupe">
-                    No error logs found matching your filters
-                  </div>
-                ) : (
-                  filteredLogs.map((log) => (
-                    <div 
-                      key={log.id} 
-                      className={`bg-white rounded-xl p-4 border ${
-                        log.resolved ? 'border-warm-sand' : 'border-red-200'
-                      }`}
-                    >
-                      <div className="flex justify-between">
-                        <div className="flex items-center">
-                          <span className={`px-2 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                            log.type === 'sms' 
-                              ? 'bg-blue-100 text-blue-800' 
-                              : log.type === 'ai'
-                              ? 'bg-purple-100 text-purple-800'
-                              : log.type === 'auth'
-                              ? 'bg-yellow-100 text-yellow-800'
-                              : 'bg-red-100 text-red-800'
-                          }`}>
-                            {log.type.toUpperCase()}
-                          </span>
-                          <span className="ml-2 text-xs text-dusty-taupe">
-                            {formatDate(log.timestamp)}
-                          </span>
-                        </div>
-                        <div>
-                          {log.resolved ? (
-                            <span className="px-2 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
-                              Resolved
+              {/* Subscription stats */}
+              <div className="grid grid-cols-4 gap-4 mb-6">
+                <div className="bg-soft-beige rounded-xl p-4">
+                  <h4 className="text-sm font-medium text-dusty-taupe mb-1">Active Subscriptions</h4>
+                  <p className="text-2xl font-bold text-clay-brown">247</p>
+                </div>
+                <div className="bg-soft-beige rounded-xl p-4">
+                  <h4 className="text-sm font-medium text-dusty-taupe mb-1">Monthly Recurring Revenue</h4>
+                  <p className="text-2xl font-bold text-clay-brown">$3,720</p>
+                </div>
+                <div className="bg-soft-beige rounded-xl p-4">
+                  <h4 className="text-sm font-medium text-dusty-taupe mb-1">Trial Conversions</h4>
+                  <p className="text-2xl font-bold text-clay-brown">68%</p>
+                </div>
+                <div className="bg-soft-beige rounded-xl p-4">
+                  <h4 className="text-sm font-medium text-dusty-taupe mb-1">Churn Rate</h4>
+                  <p className="text-2xl font-bold text-clay-brown">4.2%</p>
+                </div>
+              </div>
+              
+              {/* Subscriptions table */}
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-warm-sand">
+                  <thead>
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-dusty-taupe uppercase tracking-wider">
+                        Customer
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-dusty-taupe uppercase tracking-wider">
+                        Plan
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-dusty-taupe uppercase tracking-wider">
+                        Amount
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-dusty-taupe uppercase tracking-wider">
+                        Status
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-dusty-taupe uppercase tracking-wider">
+                        Start Date
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-dusty-taupe uppercase tracking-wider">
+                        Next Billing
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-dusty-taupe uppercase tracking-wider">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-warm-sand">
+                    {subscriptions.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="px-4 py-8 text-center text-dusty-taupe">
+                          No subscriptions found. Try a different search.
+                        </td>
+                      </tr>
+                    ) : (
+                      subscriptions.map((subscription: any) => (
+                        <tr key={subscription.id} className="hover:bg-soft-beige">
+                          <td className="px-4 py-4 whitespace-nowrap">
+                            <div className="text-sm font-medium text-clay-brown">{subscription.customer_name}</div>
+                            <div className="text-xs text-dusty-taupe">{subscription.customer_email}</div>
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap text-sm text-dusty-taupe">
+                            {subscription.plan}
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap text-sm text-dusty-taupe">
+                            ${subscription.amount}
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap">
+                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                              subscription.status === 'active' ? 'bg-green-100 text-green-800' :
+                              subscription.status === 'trialing' ? 'bg-blue-100 text-blue-800' :
+                              subscription.status === 'past_due' ? 'bg-yellow-100 text-yellow-800' :
+                              'bg-red-100 text-red-800'
+                            }`}>
+                              {subscription.status}
                             </span>
-                          ) : (
-                            <button
-                              onClick={() => resolveError(log.id)}
-                              className="px-2 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800 hover:bg-red-200"
-                            >
-                              Mark Resolved
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap text-sm text-dusty-taupe">
+                            {subscription.start_date}
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap text-sm text-dusty-taupe">
+                            {subscription.next_billing}
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap text-sm font-medium">
+                            <button className="text-clay-brown hover:text-blush-pink mr-3">
+                              Edit
                             </button>
-                          )}
-                        </div>
-                      </div>
-                      <p className="mt-2 text-sm text-clay-brown">{log.message}</p>
-                    </div>
-                  ))
-                )}
+                            <button className="text-red-500 hover:text-red-700">
+                              Cancel
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
               </div>
             </div>
           )}
+          
+          {/* Other tabs would be implemented similarly */}
+          {activeTab === 'usage' && (
+            <div className="py-12 text-center text-dusty-taupe">
+              <BarChart2 className="w-16 h-16 mx-auto mb-4 text-clay-brown opacity-50" />
+              <h3 className="text-lg font-medium text-clay-brown mb-2">Usage & Engagement Dashboard</h3>
+              <p>Feature adoption, activity logs, and user engagement metrics will be displayed here.</p>
+            </div>
+          )}
+          
+          {activeTab === 'support' && (
+            <div className="py-12 text-center text-dusty-taupe">
+              <HelpCircle className="w-16 h-16 mx-auto mb-4 text-clay-brown opacity-50" />
+              <h3 className="text-lg font-medium text-clay-brown mb-2">Support Dashboard</h3>
+              <p>Ticket management, live chat metrics, and troubleshooting tools will be displayed here.</p>
+            </div>
+          )}
+          
+          {activeTab === 'security' && (
+            <div className="py-12 text-center text-dusty-taupe">
+              <Shield className="w-16 h-16 mx-auto mb-4 text-clay-brown opacity-50" />
+              <h3 className="text-lg font-medium text-clay-brown mb-2">Security & Compliance</h3>
+              <p>Audit logs, login activity, and permission management will be displayed here.</p>
+            </div>
+          )}
+          
+          {activeTab === 'reports' && (
+            <div className="py-12 text-center text-dusty-taupe">
+              <FileText className="w-16 h-16 mx-auto mb-4 text-clay-brown opacity-50" />
+              <h3 className="text-lg font-medium text-clay-brown mb-2">Reports & Exports</h3>
+              <p>Custom report builder and scheduled exports will be available here.</p>
+            </div>
+          )}
+          
+          {activeTab === 'alerts' && (
+            <div className="py-12 text-center text-dusty-taupe">
+              <Bell className="w-16 h-16 mx-auto mb-4 text-clay-brown opacity-50" />
+              <h3 className="text-lg font-medium text-clay-brown mb-2">Alerts & Notifications</h3>
+              <p>Configure threshold alerts and notification settings here.</p>
+            </div>
+          )}
         </div>
-      </div>
+      )}
     </div>
   );
 };

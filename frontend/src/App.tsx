@@ -5,6 +5,7 @@ import EntryModal from './components/EntryModal';
 import Settings from './components/Settings';
 import Login from './components/Login';
 import { JournalEntry } from './types';
+import { fetchEntries } from './api/entries';
 
 function App() {
   const [selectedEntry, setSelectedEntry] = useState<JournalEntry | null>(null);
@@ -15,26 +16,16 @@ function App() {
 
   // Fetch entries when the app loads or when refreshTrigger changes
   useEffect(() => {
-    const fetchEntries = async () => {
+    const loadEntries = async () => {
       try {
-        const response = await fetch('/api/entries', {
-          headers: {
-            'X-User-ID': localStorage.getItem('userId') || 'demo'
-          }
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
-          setEntries(data);
-        } else {
-          console.error('Failed to fetch entries:', response.statusText);
-        }
+        const entriesData = await fetchEntries();
+        setEntries(entriesData);
       } catch (error) {
         console.error('Error fetching entries:', error);
       }
     };
 
-    fetchEntries();
+    loadEntries();
   }, [refreshTrigger]);
 
   const openModal = (entry: JournalEntry | null = null) => {

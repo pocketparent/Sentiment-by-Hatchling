@@ -1,4 +1,6 @@
+import axios from 'axios';
 import { useState, useEffect } from 'react';
+import axiosInstance from './axios/axiosInstance';
 
 // Media file types
 export type MediaType = 'image' | 'video' | 'audio' | 'unknown';
@@ -109,21 +111,14 @@ export function useMediaUpload() {
       formData.append('media', mediaFile.file);
       formData.append('user_id', userId);
       
-      const response = await fetch(`${API_BASE}/upload`, {
-        method: 'POST',
-        body: formData,
+      const response = await axiosInstance.post(`${API_BASE}/upload`, formData, {
         headers: {
+          'Content-Type': 'multipart/form-data',
           'X-User-ID': userId
         }
       });
       
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => null);
-        throw new Error(errorData?.error || 'Failed to upload media');
-      }
-      
-      const data = await response.json();
-      return data.media_url;
+      return response.data.media_url;
     } catch (err: any) {
       console.error('Media upload error:', err);
       setError(err.message || 'Failed to upload media. Please try again.');
@@ -148,18 +143,11 @@ export function useMediaUpload() {
  */
 export async function getMediaUrl(mediaPath: string): Promise<string> {
   try {
-    const response = await fetch(`${API_BASE}/url?path=${encodeURIComponent(mediaPath)}`, {
-      headers: {
-        'X-User-ID': localStorage.getItem('userId') || 'demo'
-      }
+    const response = await axiosInstance.get(`${API_BASE}/url`, {
+      params: { path: mediaPath }
     });
     
-    if (!response.ok) {
-      throw new Error('Failed to get media URL');
-    }
-    
-    const data = await response.json();
-    return data.url;
+    return response.data.url;
   } catch (error) {
     console.error('Error getting media URL:', error);
     return mediaPath; // Return original path as fallback
@@ -171,18 +159,9 @@ export async function getMediaUrl(mediaPath: string): Promise<string> {
  */
 export async function deleteMedia(mediaPath: string): Promise<boolean> {
   try {
-    const response = await fetch(`${API_BASE}/delete`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-User-ID': localStorage.getItem('userId') || 'demo'
-      },
-      body: JSON.stringify({ path: mediaPath })
+    const response = await axiosInstance.post(`${API_BASE}/delete`, {
+      path: mediaPath
     });
-    
-    if (!response.ok) {
-      throw new Error('Failed to delete media');
-    }
     
     return true;
   } catch (error) {
