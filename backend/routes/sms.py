@@ -7,6 +7,12 @@ from datetime import datetime
 import re
 import random
 import string
+import os
+from twilio.rest import Client
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -17,6 +23,24 @@ db = firestore.client()
 
 # Store verification codes in memory (in production, use a more persistent solution)
 verification_codes = {}
+
+# Initialize Twilio client
+try:
+    twilio_client = Client(
+        os.environ.get('TWILIO_SID'),
+        os.environ.get('TWILIO_AUTH_TOKEN')
+    )
+    twilio_phone_number = os.environ.get('TWILIO_PHONE_NUMBER')
+    logger.info(f"✅ Twilio client initialized with phone number: {twilio_phone_number}")
+except Exception as e:
+    logger.error(f"❌ Failed to initialize Twilio client: {str(e)}")
+    twilio_client = None
+    twilio_phone_number = None
+
+# Check if we're in development mode
+DEV_MODE = os.environ.get('DEV_MODE', 'false').lower() == 'true'
+if DEV_MODE:
+    logger.info("🔧 Running in DEVELOPMENT MODE - SMS messages will be logged but not sent")
 
 @sms_bp.route("/webhook", methods=["POST"])
 def sms_webhook():
@@ -188,7 +212,9 @@ def sms_status():
     """
     return jsonify({
         "status": "active",
-        "message": "SMS integration is active and ready to receive messages"
+        "message": "SMS integration is active and ready to receive messages",
+        "twilio_configured": twilio_client is not None,
+        "dev_mode": DEV_MODE
     }), 200
 
 @sms_bp.route("/verify", methods=["POST"])
@@ -218,12 +244,8 @@ def verify_phone():
             "created_at": datetime.now()
         }
         
-        # In a real implementation, you would send an SMS here using a service like Twilio
-        # For this demo, we'll just log it and pretend it was sent
-        logger.info(f"📤 Verification code for {phone_number}: {verification_code}")
-        
-        # For testing purposes, store the code in Firestore so we can see it
-        db.collection("verification_codes").add({
+        # Store the code in Firestore so we can see it
+        code_ref = db.collection("verification_codes").add({
             "phone_number": phone_number,
             "code": verification_code,
             "user_id": user_id,
@@ -231,10 +253,45 @@ def verify_phone():
             "used": False
         })
         
-        return jsonify({
-            "success": True,
-            "message": f"Verification code sent to {phone_number}"
-        }), 200
+        # Log the verification code for debugging
+        logger.info(f"📤 Verification code for {phone_number}: {verification_code}")
+        
+        # Send SMS via Twilio if configured and not in dev mode
+        if twilio_client and not DEV_MODE:
+            try:
+                message = twilio_client.messages.create(
+                    body=f"Your Hatchling verification code is: {verification_code}",
+                    from_=twilio_phone_number,
+                    to=phone_number
+                )
+                logger.info(f"✅ Verification SMS sent to {phone_number}, SID: {message.sid}")
+                
+                # Update the Firestore record with the message SID
+                db.collection("verification_codes").document(code_ref[1].id).update({
+                    "message_sid": message.sid,
+                    "sent": True
+                })
+                
+                return jsonify({
+                    "success": True,
+                    "message": f"Verification code sent to {phone_number}"
+                }), 200
+            except Exception as e:
+                logger.error(f"❌ Twilio SMS sending failed: {str(e)}")
+                return jsonify({
+                    "success": False, 
+                    "message": f"Failed to send SMS: {str(e)}",
+                    "code": verification_code if DEV_MODE else None
+                }), 500
+        else:
+            # In development mode, return the code in the response
+            logger.info("🔧 Development mode: not sending actual SMS")
+            return jsonify({
+                "success": True,
+                "message": f"Verification code generated for {phone_number}",
+                "dev_mode": True,
+                "code": verification_code
+            }), 200
         
     except Exception as e:
         logger.error(f"❌ Error sending verification code: {str(e)}")

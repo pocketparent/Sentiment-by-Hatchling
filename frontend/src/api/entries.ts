@@ -134,7 +134,7 @@ export async function getEntryById(id: string): Promise<JournalEntry> {
   }
 }
 
-export async function generateAITags(content: string): Promise<string[]> {
+export async function generateAITags(content: string, mediaUrl?: string, mediaType?: string): Promise<string[]> {
   try {
     if (!content || content.trim().length < 10) {
       console.log('⚠️ Content too short for AI tag generation');
@@ -143,39 +143,18 @@ export async function generateAITags(content: string): Promise<string[]> {
     
     console.log('🤖 Requesting AI tags for content');
     
-    // For now, return mock tags to prevent errors while backend is being implemented
-    // This ensures the UI works even if the backend endpoint isn't ready
-    console.log('⚠️ Using mock tags while backend endpoint is being implemented');
+    const payload: any = { content };
     
-    // Simulate network delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // Generate some relevant tags based on content
-    const mockTags = [];
-    
-    if (content.toLowerCase().includes('baby')) mockTags.push('baby');
-    if (content.toLowerCase().includes('sleep')) mockTags.push('sleep');
-    if (content.toLowerCase().includes('food') || content.toLowerCase().includes('eat')) mockTags.push('food');
-    if (content.toLowerCase().includes('smile') || content.toLowerCase().includes('laugh')) mockTags.push('happy');
-    if (content.toLowerCase().includes('cry')) mockTags.push('emotional');
-    if (content.toLowerCase().includes('walk') || content.toLowerCase().includes('crawl')) mockTags.push('milestone');
-    if (content.toLowerCase().includes('doctor') || content.toLowerCase().includes('sick')) mockTags.push('health');
-    
-    // Add some default tags if we don't have enough
-    if (mockTags.length < 2) {
-      const defaultTags = ['memory', 'moment', 'family', 'growth', 'development'];
-      const randomTag = defaultTags[Math.floor(Math.random() * defaultTags.length)];
-      mockTags.push(randomTag);
+    // Add media information if available
+    if (mediaUrl) {
+      payload.media_url = mediaUrl;
+      payload.media_type = mediaType || 'image/jpeg';
+      console.log('📷 Including media in AI tag generation:', mediaUrl);
     }
     
-    console.log('✅ Mock AI tags generated:', mockTags);
-    return mockTags;
-    
-    /* Uncomment this when backend endpoint is ready
-    const response = await axiosInstance.post(`${API_BASE}/generate-tags`, { content });
+    const response = await axiosInstance.post(`${API_BASE}/generate-tags`, payload);
     console.log('✅ AI tags generated:', response.data.tags);
     return response.data.tags || [];
-    */
   } catch (error) {
     console.error('❌ AI tag generation error:', error);
     // Return empty array instead of throwing to prevent UI errors

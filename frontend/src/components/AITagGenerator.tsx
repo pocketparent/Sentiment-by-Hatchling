@@ -1,26 +1,29 @@
 import React, { useState, useEffect } from 'react';
-import { useMediaUpload } from '../api/media';
 import { generateAITags } from '../api/entries';
 
 interface AITagGeneratorProps {
   content: string;
   onTagsGenerated: (tags: string[]) => void;
   existingTags?: string[];
+  mediaUrl?: string;
+  mediaType?: string;
 }
 
 const AITagGenerator: React.FC<AITagGeneratorProps> = ({ 
   content, 
   onTagsGenerated,
-  existingTags = []
+  existingTags = [],
+  mediaUrl,
+  mediaType
 }) => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
-  // Generate tags based on content
+  // Generate tags based on content and media
   const handleGenerateTags = async () => {
-    if (content.trim().length < 10) {
-      setError('Please write more content to generate tags');
+    if (content.trim().length < 10 && !mediaUrl) {
+      setError('Please write more content or add media to generate tags');
       return;
     }
     
@@ -29,7 +32,7 @@ const AITagGenerator: React.FC<AITagGeneratorProps> = ({
     setSuccess(false);
     
     try {
-      const generatedTags = await generateAITags(content);
+      const generatedTags = await generateAITags(content, mediaUrl, mediaType);
       if (generatedTags.length > 0) {
         // Filter out tags that already exist
         const newTags = generatedTags.filter(tag => !existingTags.includes(tag));
@@ -54,9 +57,9 @@ const AITagGenerator: React.FC<AITagGeneratorProps> = ({
       <button
         type="button"
         onClick={handleGenerateTags}
-        disabled={isGenerating || content.trim().length < 10}
+        disabled={isGenerating || (content.trim().length < 10 && !mediaUrl)}
         className={`text-sm flex items-center ${
-          isGenerating || content.trim().length < 10 
+          isGenerating || (content.trim().length < 10 && !mediaUrl)
             ? 'text-dusty-taupe opacity-50 cursor-not-allowed' 
             : 'text-clay-brown hover:text-black transition-colors'
         }`}
