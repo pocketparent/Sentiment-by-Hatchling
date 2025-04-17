@@ -1,13 +1,22 @@
 import React from 'react';
 import { JournalEntry } from '../types';
-import { Play } from 'lucide-react';
+import { Play, CheckSquare, Square } from 'lucide-react';
 
 type Props = {
   entry: JournalEntry;
   onClick: () => void;
+  isSelectionMode?: boolean;
+  isSelected?: boolean;
+  onSelectionToggle?: (entryId: string) => void;
 };
 
-const EntryCard: React.FC<Props> = ({ entry, onClick }) => {
+const EntryCard: React.FC<Props> = ({ 
+  entry, 
+  onClick, 
+  isSelectionMode = false, 
+  isSelected = false,
+  onSelectionToggle
+}) => {
   // Determine if the file is an image for preview
   const isImageFile = (url: string) => {
     return /\.(jpg|jpeg|png|gif|webp)$/i.test(url) || (entry.media_type?.startsWith('image/') ?? false);
@@ -38,26 +47,44 @@ const EntryCard: React.FC<Props> = ({ entry, onClick }) => {
   };
 
   const cardStyle = getCardStyle();
+  
+  const handleCardClick = () => {
+    if (isSelectionMode && onSelectionToggle) {
+      onSelectionToggle(entry.entry_id);
+    } else {
+      onClick();
+    }
+  };
 
   return (
     <div
-      className={`rounded-2xl bg-white p-4 cursor-pointer ${cardStyle}`}
-      onClick={onClick}
+      className={`rounded-2xl bg-white p-4 cursor-pointer ${cardStyle} ${isSelected ? 'ring-2 ring-blush-pink' : ''}`}
+      onClick={handleCardClick}
     >
       <div className="flex justify-between items-center mb-2 text-sm text-dusty-taupe">
         <span>{entry.date_of_memory || 'Unknown date'}</span>
-        {entry.privacy && (
-          <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${
-            entry.privacy === 'private' 
-              ? 'bg-warm-sand text-clay-brown' 
-              : 'bg-blush-pink text-clay-brown'
-          }`}>
-            {entry.privacy}
-          </span>
-        )}
+        <div className="flex items-center gap-2">
+          {isSelectionMode && (
+            <div className="text-clay-brown" onClick={(e) => {
+              e.stopPropagation();
+              if (onSelectionToggle) onSelectionToggle(entry.entry_id);
+            }}>
+              {isSelected ? <CheckSquare size={18} /> : <Square size={18} />}
+            </div>
+          )}
+          {entry.privacy && (
+            <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${
+              entry.privacy === 'private' 
+                ? 'bg-warm-sand text-clay-brown' 
+                : 'bg-blush-pink text-clay-brown'
+            }`}>
+              {entry.privacy}
+            </span>
+          )}
+        </div>
       </div>
 
-      {/* Conditional rendering based on entry type */}
+      {/* Conditional rendering based on entry type - improved for better display in JournalView */}
       {cardStyle === "image-entry" && entry.media_url && (
         <div className="mb-3">
           <img
@@ -65,6 +92,7 @@ const EntryCard: React.FC<Props> = ({ entry, onClick }) => {
             alt="Memory"
             className="w-full rounded-lg border border-warm-sand object-cover"
             style={{ maxHeight: "200px" }}
+            loading="lazy"
           />
         </div>
       )}

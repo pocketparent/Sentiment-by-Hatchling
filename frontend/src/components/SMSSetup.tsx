@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import axiosInstance from '../api/axios/axiosInstance';
+import { sendVerificationCode, confirmVerificationCode } from '../api/sms';
 
 interface SMSSetupProps {
   userId: string;
@@ -50,19 +50,16 @@ const SMSSetup: React.FC<SMSSetupProps> = ({ userId }) => {
     }
     
     try {
-      const response = await axiosInstance.post('/api/sms/verify', {
-        phone_number: `+1${cleanedNumber}`, // Assuming US numbers for now
-        user_id: userId
-      });
+      const response = await sendVerificationCode(`+1${cleanedNumber}`, userId);
       
-      if (response.data.success) {
+      if (response.success) {
         setIsVerifying(true);
         setSuccess('Verification code sent! Please check your phone.');
       } else {
-        setError(response.data.message || 'Failed to send verification code');
+        setError(response.message || 'Failed to send verification code');
       }
     } catch (err: any) {
-      setError(err.response?.data?.message || 'An error occurred. Please try again.');
+      setError(err.message || 'An error occurred. Please try again.');
       console.error('SMS verification error:', err);
     } finally {
       setIsLoading(false);
@@ -84,20 +81,16 @@ const SMSSetup: React.FC<SMSSetupProps> = ({ userId }) => {
     try {
       const cleanedNumber = phoneNumber.replace(/\D/g, '');
       
-      const response = await axiosInstance.post('/api/sms/confirm', {
-        phone_number: `+1${cleanedNumber}`,
-        code: verificationCode,
-        user_id: userId
-      });
+      const response = await confirmVerificationCode(`+1${cleanedNumber}`, verificationCode, userId);
       
-      if (response.data.success) {
+      if (response.success) {
         setIsVerified(true);
         setSuccess('Phone number verified successfully! You can now send journal entries via SMS.');
       } else {
-        setError(response.data.message || 'Invalid verification code');
+        setError(response.message || 'Invalid verification code');
       }
     } catch (err: any) {
-      setError(err.response?.data?.message || 'An error occurred. Please try again.');
+      setError(err.message || 'An error occurred. Please try again.');
       console.error('SMS confirmation error:', err);
     } finally {
       setIsLoading(false);

@@ -3,6 +3,8 @@ import os
 import tempfile
 import logging
 import base64
+import requests
+from io import BytesIO
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -30,10 +32,11 @@ def get_ai_tags(content, media_url=None, media_type=None):
             logger.info("Content too short for tag generation and no media provided")
             return []
         
+        # Enhanced system prompt to focus on object detection in images
         messages = [
             {
                 "role": "system",
-                "content": "You are a helpful assistant who extracts 3-5 short descriptive tags from a journal entry. Focus on key themes, emotions, activities, or milestones. Return only a comma-separated list of tags, no explanation."
+                "content": "You are a helpful assistant who extracts 3-5 short descriptive tags from a journal entry. When analyzing images, identify specific objects, people, animals, locations, and activities visible in the image. For example, if there's a dog in the photo, include 'dog' as a tag. Focus on key themes, emotions, activities, or milestones. Return only a comma-separated list of tags, no explanation."
             }
         ]
         
@@ -49,11 +52,11 @@ def get_ai_tags(content, media_url=None, media_type=None):
                     # Create a data URL
                     data_url = f"data:{media_type};base64,{image_data}"
                     
-                    # Use GPT-4 Vision to analyze the image
+                    # Use GPT-4 Vision to analyze the image with enhanced prompt
                     messages.append({
                         "role": "user",
                         "content": [
-                            {"type": "text", "text": f"Please provide tags for this memory based on both the text and image:\n\n{content}"},
+                            {"type": "text", "text": f"Please provide tags for this memory based on both the text and image. Identify specific objects, people, animals, locations, and activities visible in the image:\n\n{content}"},
                             {
                                 "type": "image_url",
                                 "image_url": {"url": data_url}
@@ -61,31 +64,50 @@ def get_ai_tags(content, media_url=None, media_type=None):
                         ]
                     })
                     
-                    # Use GPT-4 Vision model
+                    # Use GPT-4 Vision model with increased max_tokens for better analysis
                     response = client.chat.completions.create(
                         model="gpt-4-vision-preview",
                         messages=messages,
-                        max_tokens=50,
+                        max_tokens=100,
                         temperature=0.5
                     )
                 else:
-                    # For remote URLs
+                    # For remote URLs, download the image first to ensure it's accessible
+                    try:
+                        # Download the image from the URL
+                        image_response = requests.get(media_url, timeout=10)
+                        if image_response.status_code == 200:
+                            # Convert to base64 to ensure reliable processing
+                            image_data = base64.b64encode(image_response.content).decode('utf-8')
+                            data_url = f"data:{media_type};base64,{image_data}"
+                            
+                            # Use the data URL instead of the original URL
+                            image_url_to_use = data_url
+                        else:
+                            # If download fails, use the original URL
+                            logger.warning(f"Failed to download image from URL: {media_url}, status code: {image_response.status_code}")
+                            image_url_to_use = media_url
+                    except Exception as download_error:
+                        logger.warning(f"Error downloading image from URL: {str(download_error)}")
+                        image_url_to_use = media_url
+                    
+                    # Use GPT-4 Vision to analyze the image with enhanced prompt
                     messages.append({
                         "role": "user",
                         "content": [
-                            {"type": "text", "text": f"Please provide tags for this memory based on both the text and image:\n\n{content}"},
+                            {"type": "text", "text": f"Please provide tags for this memory based on both the text and image. Identify specific objects, people, animals, locations, and activities visible in the image:\n\n{content}"},
                             {
                                 "type": "image_url",
-                                "image_url": {"url": media_url}
+                                "image_url": {"url": image_url_to_use}
                             }
                         ]
                     })
                     
-                    # Use GPT-4 Vision model
+                    # Use GPT-4 Vision model with increased max_tokens for better analysis
                     response = client.chat.completions.create(
                         model="gpt-4-vision-preview",
                         messages=messages,
-                        max_tokens=50,
+                        max_tokens=100,
                         temperature=0.5
                     )
                 

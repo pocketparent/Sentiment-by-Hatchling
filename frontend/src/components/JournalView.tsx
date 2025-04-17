@@ -6,6 +6,7 @@ import EmptyState from './EmptyState';
 import { Settings, Trash, Search, Tag, Filter, Calendar, User, Eye, Download, FileText, CheckSquare } from 'lucide-react';
 import EntryModal from './EntryModal';
 import { deleteEntry } from '../api/entries';
+import { exportEntriesAsCSV, exportEntriesAsPDF, downloadBlob } from '../api/export';
 
 interface Props {
   entries: JournalEntry[];
@@ -73,9 +74,10 @@ const JournalView: React.FC<Props> = ({ entries, onSelectEntry, onOpenSettings, 
       // In selection mode, toggle selection instead of viewing
       toggleEntrySelection(entry.entry_id);
     } else {
-      // In normal mode, view the entry
+      // In normal mode, view the entry in read-only mode first
       setSelectedEntry(entry);
       setShowModal(true);
+      // viewOnly is already set to true in the EntryModal component
     }
   };
 
@@ -127,36 +129,39 @@ const JournalView: React.FC<Props> = ({ entries, onSelectEntry, onOpenSettings, 
   };
 
   // Export functions
-  const exportToPDF = (entryIds?: string[]) => {
-    setExportLoading(true);
-    let endpoint = '/api/export/pdf';
-    
-    if (entryIds && entryIds.length === 1) {
-      // Single entry export
-      endpoint = `/api/export/pdf?entry_id=${entryIds[0]}`;
-    } else if (entryIds && entryIds.length > 1) {
-      // Multiple entries export
-      endpoint = `/api/export/pdf?entry_ids=${entryIds.join(',')}`;
+  const exportToPDF = async (entryIds?: string[]) => {
+    try {
+      setExportLoading(true);
+      const pdfBlob = await exportEntriesAsPDF(entryIds);
+      
+      if (pdfBlob) {
+        // PDF export successful
+        const timestamp = new Date().toISOString().slice(0, 10);
+        downloadBlob(pdfBlob, `hatchling_memories_${timestamp}.pdf`);
+      } else {
+        // PDF export not implemented
+        alert('PDF export is not yet available. Please try CSV or JSON format instead.');
+      }
+    } catch (error) {
+      console.error('PDF export error:', error);
+      alert('Failed to export as PDF. Please try again later.');
+    } finally {
+      setExportLoading(false);
     }
-    
-    window.location.href = endpoint;
-    setTimeout(() => setExportLoading(false), 1000);
   };
 
-  const exportToCSV = (entryIds?: string[]) => {
-    setExportLoading(true);
-    let endpoint = '/api/export/csv';
-    
-    if (entryIds && entryIds.length === 1) {
-      // Single entry export
-      endpoint = `/api/export/csv?entry_id=${entryIds[0]}`;
-    } else if (entryIds && entryIds.length > 1) {
-      // Multiple entries export
-      endpoint = `/api/export/csv?entry_ids=${entryIds.join(',')}`;
+  const exportToCSV = async (entryIds?: string[]) => {
+    try {
+      setExportLoading(true);
+      const csvBlob = await exportEntriesAsCSV(entryIds);
+      const timestamp = new Date().toISOString().slice(0, 10);
+      downloadBlob(csvBlob, `hatchling_memories_${timestamp}.csv`);
+    } catch (error) {
+      console.error('CSV export error:', error);
+      alert('Failed to export as CSV. Please try again later.');
+    } finally {
+      setExportLoading(false);
     }
-    
-    window.location.href = endpoint;
-    setTimeout(() => setExportLoading(false), 1000);
   };
 
   // Selection mode functions
@@ -208,17 +213,23 @@ const JournalView: React.FC<Props> = ({ entries, onSelectEntry, onOpenSettings, 
         />
       )}
 
-      <div className="flex justify-center items-center mb-6">
-        <h2 className="text-2xl font-semibold text-clay-brown">Your Memories</h2>
-        <div className="absolute right-4 flex items-center space-x-2">
-          {/* Selection mode toggle */}
+      <div className="relative mb-6">
+        {/* Centered heading with text-center class */}
+        <div className="text-center">
+          <h2 className="text-2xl font-semibold text-clay-brown">Your Memories</h2>
+        </div>
+        
+        {/* Right-aligned buttons */}
+        <div className="absolute right-4 top-0 flex items-center space-x-2">
+          {/* Selection mode toggle - enhanced with better label */}
           <button
-            className={`text-clay-brown hover:text-black transition ${isSelectionMode ? 'bg-soft-beige p-1 rounded-full' : ''}`}
-            aria-label={isSelectionMode ? "Exit Selection Mode" : "Enter Selection Mode"}
+            className={`text-clay-brown hover:text-black transition ${isSelectionMode ? 'bg-soft-beige p-2 rounded-full' : ''}`}
+            aria-label={isSelectionMode ? "Exit Selection Mode" : "Select Multiple Entries"}
             onClick={toggleSelectionMode}
             title={isSelectionMode ? "Exit Selection Mode" : "Select Multiple Entries"}
           >
             <CheckSquare size={20} />
+            <span className="sr-only">Select Multiple Entries</span>
           </button>
           
           {/* Export dropdown */}
@@ -292,30 +303,32 @@ const JournalView: React.FC<Props> = ({ entries, onSelectEntry, onOpenSettings, 
         </div>
       </div>
 
-      {/* Selection mode info bar */}
+      {/* Selection mode info bar - enhanced with more prominent UI */}
       {isSelectionMode && (
-        <div className="mb-4 p-3 bg-soft-beige rounded-xl flex justify-between items-center">
-          <span className="text-sm text-clay-brown">
+        <div className="mb-4 p-4 bg-white shadow-md rounded-xl flex justify-between items-center sticky top-0 z-10">
+          <span className="text-sm font-medium text-clay-brown">
             {selectedEntries.length} {selectedEntries.length === 1 ? 'entry' : 'entries'} selected
           </span>
           <div className="flex space-x-2">
             <button
               onClick={() => exportSelectedEntries('pdf')}
               disabled={selectedEntries.length === 0 || exportLoading}
-              className="px-3 py-1 text-xs bg-clay-brown text-white rounded-lg hover:bg-blush-pink transition-colors disabled:opacity-50"
+              className="px-4 py-2 text-sm bg-clay-brown text-white rounded-lg hover:bg-blush-pink transition-colors disabled:opacity-50 flex items-center"
             >
-              Export as PDF
+              <FileText size={16} className="mr-2" />
+              Download PDF
             </button>
             <button
               onClick={() => exportSelectedEntries('csv')}
               disabled={selectedEntries.length === 0 || exportLoading}
-              className="px-3 py-1 text-xs bg-clay-brown text-white rounded-lg hover:bg-blush-pink transition-colors disabled:opacity-50"
+              className="px-4 py-2 text-sm bg-clay-brown text-white rounded-lg hover:bg-blush-pink transition-colors disabled:opacity-50 flex items-center"
             >
-              Export as CSV
+              <FileText size={16} className="mr-2" />
+              Download CSV
             </button>
             <button
               onClick={toggleSelectionMode}
-              className="px-3 py-1 text-xs bg-warm-sand text-clay-brown rounded-lg hover:bg-blush-pink transition-colors"
+              className="px-4 py-2 text-sm bg-warm-sand text-clay-brown rounded-lg hover:bg-blush-pink transition-colors flex items-center"
             >
               Cancel
             </button>
