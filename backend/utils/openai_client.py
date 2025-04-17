@@ -1,147 +1,253 @@
-import openai
+from openai import OpenAI
 import os
+import tempfile
 import logging
-import traceback
-from typing import List, Optional
+import base64
+import requests
+from io import BytesIO
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def get_ai_tags(content: str) -> List[str]:
+# Initialize OpenAI client
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+def get_ai_tags(content, media_url=None, media_type=None):
     """
-    Generate tags for content using OpenAI.
+    Generate tags for a journal entry using OpenAI.
     
     Args:
         content: The text content to generate tags for
+        media_url: Optional URL to media file (image, video)
+        media_type: Media MIME type
         
     Returns:
         List of generated tags
     """
     try:
-        # Check if OpenAI API key is set
-        api_key = os.environ.get("OPENAI_API_KEY")
-        if not api_key:
-            logger.warning("⚠️ OpenAI API key not set, using fallback tags")
-            return generate_fallback_tags(content)
+        logger.info("🔍 Generating AI tags for content and media")
+        
+        # Skip if content is too short and no media
+        if len(content.strip()) < 10 and not media_url:
+            logger.info("Content too short for tag generation and no media provided")
+            return []
+        
+        # Enhanced system prompt to focus on object detection in images
+        messages = [
+            {
+                "role": "system",
+                "content": "You are a helpful assistant who extracts 3-5 short descriptive tags from a journal entry. When analyzing images, identify specific objects, people, animals, locations, and activities visible in the image. For example, if there's a dog in the photo, include 'dog' as a tag. Focus on key themes, emotions, activities, or milestones. Return only a comma-separated list of tags, no explanation."
+            }
+        ]
+        
+        # If we have an image, analyze it using vision model
+        if media_url and media_type and media_type.startswith('image/'):
+            try:
+                # For local files that start with /
+                if media_url.startswith('/'):
+                    # Read the image file and encode as base64
+                    with open(media_url, 'rb') as image_file:
+                        image_data = base64.b64encode(image_file.read()).decode('utf-8')
+                        
+                    # Create a data URL
+                    data_url = f"data:{media_type};base64,{image_data}"
+                    
+                    # Use GPT-4 Vision to analyze the image with enhanced prompt
+                    messages.append({
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": f"Please provide tags for this memory based on both the text and image. Identify specific objects, people, animals, locations, and activities visible in the image:\n\n{content}"},
+                            {
+                                "type": "image_url",
+                                "image_url": {"url": data_url}
+                            }
+                        ]
+                    })
+                    
+                    # Use GPT-4 Vision model with increased max_tokens for better analysis
+                    response = client.chat.completions.create(
+                        model="gpt-4-vision-preview",
+                        messages=messages,
+                        max_tokens=100,
+                        temperature=0.5
+                    )
+                else:
+                    # For remote URLs, download the image first to ensure it's accessible
+                    try:
+                        # Download the image from the URL
+                        image_response = requests.get(media_url, timeout=10)
+                        if image_response.status_code == 200:
+                            # Convert to base64 to ensure reliable processing
+                            image_data = base64.b64encode(image_response.content).decode('utf-8')
+                            data_url = f"data:{media_type};base64,{image_data}"
+                            
+                            # Use the data URL instead of the original URL
+                            image_url_to_use = data_url
+                        else:
+                            # If download fails, use the original URL
+                            logger.warning(f"Failed to download image from URL: {media_url}, status code: {image_response.status_code}")
+                            image_url_to_use = media_url
+                    except Exception as download_error:
+                        logger.warning(f"Error downloading image from URL: {str(download_error)}")
+                        image_url_to_use = media_url
+                    
+                    # Use GPT-4 Vision to analyze the image with enhanced prompt
+                    messages.append({
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": f"Please provide tags for this memory based on both the text and image. Identify specific objects, people, animals, locations, and activities visible in the image:\n\n{content}"},
+                            {
+                                "type": "image_url",
+                                "image_url": {"url": image_url_to_use}
+                            }
+                        ]
+                    })
+                    
+                    # Use GPT-4 Vision model with increased max_tokens for better analysis
+                    response = client.chat.completions.create(
+                        model="gpt-4-vision-preview",
+                        messages=messages,
+                        max_tokens=100,
+                        temperature=0.5
+                    )
+                
+                logger.info("Successfully analyzed image for tag generation")
+                
+            except Exception as e:
+                logger.error(f"❌ Image analysis failed: {str(e)}")
+                # Fall back to text-only analysis
+                messages.append({
+                    "role": "user",
+                    "content": f"Please provide tags for this memory:\n\n{content}"
+                })
+                
+                response = client.chat.completions.create(
+                    model="gpt-4",
+                    messages=messages,
+                    max_tokens=50,
+                    temperature=0.5
+                )
+        else:
+            # Text-only analysis
+            messages.append({
+                "role": "user",
+                "content": f"Please provide tags for this memory:\n\n{content}"
+            })
             
-        # Set up OpenAI client
-        openai.api_key = api_key
+            response = client.chat.completions.create(
+                model="gpt-4",
+                messages=messages,
+                max_tokens=50,
+                temperature=0.5
+            )
+            
+        raw = response.choices[0].message.content
+        logger.info(f"🔁 Raw response from OpenAI: {raw}")
+
+        # Process tags: strip whitespace, remove # symbols, lowercase
+        tags = [tag.strip("#, ").lower() for tag in raw.split(",") if tag.strip()]
         
-        # Prepare prompt
-        prompt = f"""
-        Generate 3-5 relevant tags for the following journal entry about a child. 
-        Tags should be single words or short phrases that categorize the content.
-        Focus on developmental milestones, activities, emotions, or events.
-        Return only the tags as a comma-separated list with no additional text.
-        
-        Journal entry: {content}
-        """
-        
-        # Call OpenAI API
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "You are a helpful assistant that generates relevant tags for journal entries about children."},
-                {"role": "user", "content": prompt}
-            ],
-            max_tokens=100,
-            temperature=0.5
-        )
-        
-        # Extract tags from response
-        tags_text = response.choices[0].message.content.strip()
-        
-        # Split by comma and clean up
-        tags = [tag.strip() for tag in tags_text.split(',') if tag.strip()]
-        
-        # Limit to 5 tags
+        # Limit to 5 tags maximum
         tags = tags[:5]
         
-        logger.info(f"✅ Generated {len(tags)} tags with OpenAI")
+        logger.info(f"✅ Generated tags: {tags}")
         return tags
         
     except Exception as e:
-        logger.error(f"❌ Error generating tags with OpenAI: {str(e)}")
-        logger.error(traceback.format_exc())
-        
-        # Use fallback tag generation
-        return generate_fallback_tags(content)
+        logger.error(f"❌ AI tag generation failed: {str(e)}")
+        # Return empty list rather than failing the request
+        return []
 
-def generate_fallback_tags(content: str) -> List[str]:
+
+def transcribe_audio(file_stream):
     """
-    Generate basic tags based on content keywords when OpenAI is unavailable.
+    Transcribe audio content using OpenAI Whisper.
     
     Args:
-        content: The text content to generate tags for
+        file_stream: The audio file stream to transcribe
         
     Returns:
-        List of generated tags
+        Transcribed text or empty string if failed
     """
-    content = content.lower()
-    tags = []
-    
-    # Check for common keywords
-    if any(word in content for word in ["baby", "infant", "newborn"]):
-        tags.append("baby")
-    if any(word in content for word in ["sleep", "nap", "bedtime"]):
-        tags.append("sleep")
-    if any(word in content for word in ["food", "eat", "feeding", "meal"]):
-        tags.append("food")
-    if any(word in content for word in ["smile", "laugh", "happy", "joy"]):
-        tags.append("happy")
-    if any(word in content for word in ["cry", "sad", "upset", "tears"]):
-        tags.append("emotional")
-    if any(word in content for word in ["walk", "crawl", "stand", "step"]):
-        tags.append("milestone")
-    if any(word in content for word in ["doctor", "sick", "health", "medicine"]):
-        tags.append("health")
-    if any(word in content for word in ["play", "toy", "game", "fun"]):
-        tags.append("play")
-    if any(word in content for word in ["family", "mom", "dad", "parent"]):
-        tags.append("family")
-    
-    # Add a default tag if none were found
-    if not tags:
-        tags.append("memory")
-        
-    logger.info(f"✅ Generated {len(tags)} fallback tags")
-    return tags
-
-def transcribe_audio(audio_file) -> Optional[str]:
-    """
-    Transcribe audio file using OpenAI Whisper API.
-    
-    Args:
-        audio_file: The audio file to transcribe
-        
-    Returns:
-        Transcription text or None if transcription fails
-    """
+    temp_file_path = None
     try:
-        # Check if OpenAI API key is set
-        api_key = os.environ.get("OPENAI_API_KEY")
-        if not api_key:
-            logger.warning("⚠️ OpenAI API key not set, skipping transcription")
-            return None
+        # Create temporary file
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as temp_file:
+            temp_file.write(file_stream.read())
+            temp_file_path = temp_file.name
             
-        # Set up OpenAI client
-        openai.api_key = api_key
-        
-        # Call OpenAI API
-        response = openai.Audio.transcribe("whisper-1", audio_file)
-        
-        # Extract transcription
-        transcription = response.get("text", "").strip()
-        
-        if transcription:
-            logger.info(f"✅ Transcribed audio: {transcription[:50]}...")
-            return transcription
-        else:
-            logger.warning("⚠️ Empty transcription returned")
-            return None
+        logger.info(f"Created temporary file for transcription: {temp_file_path}")
+
+        # Transcribe using OpenAI Whisper
+        with open(temp_file_path, "rb") as audio_file:
+            transcript = client.audio.transcriptions.create(
+                model="whisper-1",
+                file=audio_file
+            )
+            
+            transcribed_text = transcript.text.strip()
+            logger.info(f"Successfully transcribed audio: {transcribed_text[:50]}...")
+            return transcribed_text
             
     except Exception as e:
-        logger.error(f"❌ Error transcribing audio: {str(e)}")
-        logger.error(traceback.format_exc())
-        return None
+        logger.error(f"❌ Audio transcription failed: {str(e)}")
+        return ""
+        
+    finally:
+        # Clean up temporary file
+        if temp_file_path and os.path.exists(temp_file_path):
+            os.remove(temp_file_path)
+            logger.info(f"Removed temporary file: {temp_file_path}")
+
+def generate_entry_summary(entries, max_entries=5):
+    """
+    Generate a summary of recent journal entries.
+    Useful for nudges and reminders.
+    
+    Args:
+        entries: List of entry dictionaries
+        max_entries: Maximum number of entries to include in summary
+        
+    Returns:
+        Summary text
+    """
+    try:
+        # Limit to most recent entries
+        recent_entries = entries[:max_entries]
+        
+        if not recent_entries:
+            return "No recent entries found."
+            
+        # Create a prompt with recent entries
+        entries_text = ""
+        for i, entry in enumerate(recent_entries):
+            content = entry.get("content", "")
+            date = entry.get("date_of_memory", "unknown date")
+            entries_text += f"Entry {i+1} ({date}): {content[:100]}...\n\n"
+            
+        prompt = f"Here are the most recent journal entries:\n\n{entries_text}\n\nPlease provide a brief, encouraging summary of these memories."
+        
+        # Generate summary
+        response = client.chat.completions.create(
+            model="gpt-4",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are a helpful assistant who summarizes journal entries in a warm, supportive tone. Keep your summary brief and highlight positive aspects or patterns."
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            max_tokens=150,
+            temperature=0.7
+        )
+        
+        summary = response.choices[0].message.content.strip()
+        logger.info(f"Generated entry summary: {summary[:50]}...")
+        return summary
+        
+    except Exception as e:
+        logger.error(f"❌ Entry summary generation failed: {str(e)}")
+        return "Unable to generate summary at this time."

@@ -1,161 +1,140 @@
-import React, { useState, useEffect } from 'react';
-import './App.css';
+import React from 'react';
+import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
 import JournalView from './components/JournalView';
 import EntryModal from './components/EntryModal';
 import Settings from './components/Settings';
+import Login from './components/Login';
+import AdminPanel from './components/AdminPanel';
+import { useState, useEffect } from 'react';
+import { JournalEntry } from './types';
 import { fetchEntries } from './api/entries';
-import { Entry } from './types/entry';
+
+// Admin route wrapper component
+const AdminRoute = ({ children }: { children: React.ReactNode }) => {
+  const isAdmin = localStorage.getItem('isAdmin') === 'true';
+  
+  if (!isAdmin) {
+    return <Navigate to="/login?role=admin" replace />;
+  }
+  
+  return <>{children}</>;
+};
 
 function App() {
-  const [entries, setEntries] = useState<Entry[]>([]);
-  const [filteredEntries, setFilteredEntries] = useState<Entry[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [showEntryModal, setShowEntryModal] = useState(false);
+  const [selectedEntry, setSelectedEntry] = useState<JournalEntry | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  const [selectedPrivacy, setSelectedPrivacy] = useState<string | null>(null);
+  const [entries, setEntries] = useState<JournalEntry[]>([]);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [isAdmin, setIsAdmin] = useState(false);
 
-  // Load entries when component mounts
+  // Check admin status on load
   useEffect(() => {
-    loadEntries();
+    const adminStatus = localStorage.getItem('isAdmin') === 'true';
+    setIsAdmin(adminStatus);
   }, []);
 
-  // Filter entries when search term, tags, or privacy changes
+  // Fetch entries when the app loads or when refreshTrigger changes
   useEffect(() => {
-    filterEntries();
-  }, [entries, searchTerm, selectedTags, selectedPrivacy]);
-
-  const loadEntries = async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      // Use mock data if API fails
+    const loadEntries = async () => {
       try {
-        const fetchedEntries = await fetchEntries();
-        setEntries(fetchedEntries);
-      } catch (err) {
-        console.error('Error fetching entries from API, using mock data:', err);
-        // Mock data as fallback
-        setEntries([]);
+        const entriesData = await fetchEntries();
+        setEntries(entriesData);
+      } catch (error) {
+        console.error('Error fetching entries:', error);
       }
-    } catch (err) {
-      console.error('Error loading entries:', err);
-      setError('Failed to load memories. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    };
 
-  const filterEntries = () => {
-    let filtered = [...entries];
-
-    // Filter by search term
-    if (searchTerm) {
-      filtered = filtered.filter(entry => 
-        entry.content?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        entry.tags?.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()))
-      );
-    }
-
-    // Filter by selected tags
-    if (selectedTags.length > 0) {
-      filtered = filtered.filter(entry => 
-        selectedTags.every(tag => entry.tags?.includes(tag))
-      );
-    }
-
-    // Filter by privacy
-    if (selectedPrivacy) {
-      filtered = filtered.filter(entry => entry.privacy === selectedPrivacy);
-    }
-
-    setFilteredEntries(filtered);
-  };
-
-  const handleAddEntry = (newEntry: Entry) => {
-    setEntries(prevEntries => [newEntry, ...prevEntries]);
-    setShowEntryModal(false);
-  };
-
-  const handleUpdateEntry = (updatedEntry: Entry) => {
-    setEntries(prevEntries => 
-      prevEntries.map(entry => 
-        entry.entry_id === updatedEntry.entry_id ? updatedEntry : entry
-      )
-    );
-  };
-
-  const handleDeleteEntry = (entryId: string) => {
-    setEntries(prevEntries => 
-      prevEntries.filter(entry => entry.entry_id !== entryId)
-    );
-  };
-
-  const handleSearch = (term: string) => {
-    setSearchTerm(term);
-  };
-
-  const handleTagFilter = (tags: string[]) => {
-    setSelectedTags(tags);
-  };
-
-  const handlePrivacyFilter = (privacy: string | null) => {
-    setSelectedPrivacy(privacy);
-  };
-
-  const handleRetry = () => {
     loadEntries();
+  }, [refreshTrigger]);
+
+  const openModal = (entry: JournalEntry | null = null) => {
+    setSelectedEntry(entry);
+    setIsModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setSelectedEntry(null);
+    setIsModalOpen(false);
+  };
+
+  const openSettings = () => {
+    setShowSettings(true);
+  };
+
+  const closeSettings = () => {
+    setShowSettings(false);
+  };
+
+  const handleEntrySaved = () => {
+    // Trigger a refresh of entries
+    setRefreshTrigger(prev => prev + 1);
+    closeModal();
   };
 
   return (
-    <div className="App">
-      <header className="App-header">
-        <div className="logo-container">
-          <img src="/logo.png" alt="Hatchling" className="h-20" />
-          <h1 className="text-2xl font-bold">Hatchling</h1>
-        </div>
-        <button 
-          className="settings-button"
-          onClick={() => setShowSettings(true)}
-          aria-label="Settings"
-        >
-          <i className="fas fa-cog"></i>
-        </button>
-      </header>
-
-      <main className="App-main">
-        <JournalView 
-          entries={filteredEntries}
-          isLoading={isLoading}
-          error={error}
-          onRetry={handleRetry}
-          onSearch={handleSearch}
-          onTagFilter={handleTagFilter}
-          onPrivacyFilter={handlePrivacyFilter}
-          onAddEntry={() => setShowEntryModal(true)}
-          onEditEntry={(entry) => {
-            // Logic for editing entry
-          }}
+    <Router>
+      <div className="bg-[#fefcf9] min-h-screen text-neutral-800 relative">
+        <img
+          src="/hatchling-logo.png"
+          alt="Hatchling logo"
+          className="h-16 mx-auto mt-6 mb-2" // Increased logo size from h-12 to h-16
         />
-      </main>
 
-      {showEntryModal && (
-        <EntryModal 
-          onClose={() => setShowEntryModal(false)}
-          onSave={handleAddEntry}
-        />
-      )}
+        {/* Admin navigation bar - only visible to admin users */}
+        {isAdmin && (
+          <div className="bg-clay-brown text-white py-2 px-4 mb-4">
+            <div className="max-w-6xl mx-auto flex justify-between items-center">
+              <div className="font-medium">Admin Dashboard</div>
+              <div className="flex space-x-4">
+                <a href="/admin" className="text-white hover:text-soft-beige">Dashboard</a>
+                <a href="/" className="text-white hover:text-soft-beige">View App</a>
+                <button 
+                  onClick={() => {
+                    localStorage.removeItem('isAdmin');
+                    setIsAdmin(false);
+                    window.location.href = '/';
+                  }}
+                  className="text-white hover:text-soft-beige"
+                >
+                  Logout
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
-      {showSettings && (
-        <Settings 
-          onClose={() => setShowSettings(false)}
-        />
-      )}
-    </div>
+        <Routes>
+          <Route path="/" element={
+            <JournalView 
+              entries={entries}
+              onSelectEntry={openModal} 
+              onOpenSettings={openSettings}
+              onRefresh={() => setRefreshTrigger(prev => prev + 1)}
+            />
+          } />
+          <Route path="/login" element={<Login />} />
+          <Route path="/admin" element={
+            <AdminRoute>
+              <AdminPanel userId={localStorage.getItem('userId') || ''} isAdmin={true} />
+            </AdminRoute>
+          } />
+        </Routes>
+
+        {isModalOpen && (
+          <EntryModal
+            entry={selectedEntry}
+            onClose={closeModal}
+            onEntrySaved={handleEntrySaved}
+          />
+        )}
+
+        {showSettings && (
+          <Settings onClose={closeSettings} />
+        )}
+      </div>
+    </Router>
   );
 }
 
 export default App;
-

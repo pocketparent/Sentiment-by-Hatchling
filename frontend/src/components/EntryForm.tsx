@@ -80,10 +80,10 @@ const EntryForm: React.FC<EntryFormProps> = ({ entry, onClose, onEntrySaved }) =
     }
   };
 
-  // Generate AI tags based on content
+  // Generate AI tags based on content and media
   const handleGenerateTags = async () => {
-    if (content.trim().length < 10) {
-      setError('Please write more content to generate tags');
+    if (content.trim().length < 10 && !mediaPreview) {
+      setError('Please write more content or add media to generate tags');
       return;
     }
     
@@ -91,7 +91,14 @@ const EntryForm: React.FC<EntryFormProps> = ({ entry, onClose, onEntrySaved }) =
     setError('');
     
     try {
-      const generatedTags = await generateAITags(content);
+      // Pass media URL if available
+      const generatedTags = await generateAITags(
+        content, 
+        mediaPreview, 
+        media?.type || (mediaPreview && isImageFile(mediaPreview) ? 'image/jpeg' : 
+                        mediaPreview && isVideoFile(mediaPreview) ? 'video/mp4' : undefined)
+      );
+      
       if (generatedTags.length > 0) {
         // Merge with existing tags, avoiding duplicates
         const newTags = [...tags];
@@ -230,9 +237,9 @@ const EntryForm: React.FC<EntryFormProps> = ({ entry, onClose, onEntrySaved }) =
         {/* Generate tags button */}
         <button
           onClick={handleGenerateTags}
-          disabled={isGeneratingTags || content.trim().length < 10}
+          disabled={isGeneratingTags || (content.trim().length < 10 && !mediaPreview)}
           className={`text-sm text-clay-brown hover:text-black transition-colors ${
-            isGeneratingTags || content.trim().length < 10 ? 'opacity-50 cursor-not-allowed' : ''
+            isGeneratingTags || (content.trim().length < 10 && !mediaPreview) ? 'opacity-50 cursor-not-allowed' : ''
           }`}
         >
           {isGeneratingTags ? 'Generating...' : '✨ Generate tags with AI'}

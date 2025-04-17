@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { ArrowLeft, Bell, Download, UserPlus, Trash2, HelpCircle, FileText } from 'lucide-react';
+import { ArrowLeft, Bell, Download, UserPlus, Trash2, HelpCircle, FileText, MessageSquare, CreditCard } from 'lucide-react';
+import SMSSetup from './SMSSetup';
 
 interface SettingsProps {
   onClose: () => void;
@@ -9,6 +10,10 @@ const Settings: React.FC<SettingsProps> = ({ onClose }) => {
   const [defaultPrivacy, setDefaultPrivacy] = useState('private');
   const [reminderFrequency, setReminderFrequency] = useState('weekly');
   const [enableReminders, setEnableReminders] = useState(true);
+  const [activeSection, setActiveSection] = useState('');
+  
+  // Mock user ID for demo purposes - in a real app, this would come from auth context
+  const userId = "user123";
 
   return (
     <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4 md:p-0 overflow-y-auto">
@@ -42,6 +47,59 @@ const Settings: React.FC<SettingsProps> = ({ onClose }) => {
                 <span className="font-medium">Parent</span>
               </p>
             </div>
+          </section>
+
+          {/* Subscription Management - NEW SECTION */}
+          <section>
+            <h2 className="text-lg font-medium mb-3 text-clay-brown flex items-center">
+              <CreditCard size={18} className="mr-2" /> Subscription
+            </h2>
+            <div className="bg-soft-beige p-4 rounded-xl mb-3">
+              <div className="flex justify-between items-center mb-2">
+                <span className="font-medium">Current Plan:</span>
+                <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-medium">
+                  Trial (14 days)
+                </span>
+              </div>
+              <div className="text-sm text-dusty-taupe mb-3">
+                Your trial ends on May 1, 2025
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button className="px-4 py-2 bg-clay-brown text-white text-sm rounded-xl hover:bg-blush-pink transition-colors font-medium">
+                  Upgrade Now
+                </button>
+                <button className="px-4 py-2 bg-warm-sand text-clay-brown text-sm rounded-xl hover:bg-blush-pink transition-colors font-medium">
+                  View Plans
+                </button>
+                <button className="px-4 py-2 bg-warm-sand text-clay-brown text-sm rounded-xl hover:bg-blush-pink transition-colors font-medium">
+                  Billing History
+                </button>
+              </div>
+            </div>
+          </section>
+
+          {/* SMS Setup - NEW SECTION */}
+          <section>
+            <h2 
+              className="text-lg font-medium mb-3 text-clay-brown flex items-center cursor-pointer"
+              onClick={() => setActiveSection(activeSection === 'sms' ? '' : 'sms')}
+            >
+              <MessageSquare size={18} className="mr-2" /> SMS Journal
+              <span className="ml-2 text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full">New</span>
+            </h2>
+            <p className="text-sm text-dusty-taupe mb-3">
+              Create journal entries by sending text messages.
+            </p>
+            {activeSection === 'sms' ? (
+              <SMSSetup userId={userId} />
+            ) : (
+              <button 
+                onClick={() => setActiveSection('sms')}
+                className="px-4 py-2 bg-warm-sand text-clay-brown text-sm rounded-xl hover:bg-blush-pink transition-colors font-medium"
+              >
+                Set Up SMS Journal
+              </button>
+            )}
           </section>
 
           {/* Caregivers */}
@@ -121,10 +179,16 @@ const Settings: React.FC<SettingsProps> = ({ onClose }) => {
             </h2>
             <p className="text-sm text-dusty-taupe mb-3">You can export your full journal at any time.</p>
             <div className="flex space-x-2">
-              <button className="px-4 py-2 bg-warm-sand text-clay-brown text-sm rounded-xl hover:bg-blush-pink transition-colors font-medium">
+              <button 
+                onClick={() => window.location.href = '/api/export/pdf'}
+                className="px-4 py-2 bg-warm-sand text-clay-brown text-sm rounded-xl hover:bg-blush-pink transition-colors font-medium"
+              >
                 Download as PDF
               </button>
-              <button className="px-4 py-2 bg-warm-sand text-clay-brown text-sm rounded-xl hover:bg-blush-pink transition-colors font-medium">
+              <button 
+                onClick={() => window.location.href = '/api/export/csv'}
+                className="px-4 py-2 bg-warm-sand text-clay-brown text-sm rounded-xl hover:bg-blush-pink transition-colors font-medium"
+              >
                 Export as CSV
               </button>
             </div>

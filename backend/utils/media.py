@@ -1,139 +1,146 @@
-import firebase_admin
 import os
-import logging
-import traceback
-import requests
-from google.cloud import storage
+from firebase_admin import storage
 from werkzeug.utils import secure_filename
 import uuid
+import logging
+from datetime import datetime, timedelta
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def upload_media_to_firebase(file_stream, original_filename, content_type, folder_path="uploads"):
+def upload_media_to_firebase(file_stream, filename, content_type, folder_path="uploads"):
     """
-    Upload media file to Firebase Storage.
+    Upload media file to Firebase Storage with organized folder structure.
     
     Args:
         file_stream: The file stream to upload
-        original_filename: Original filename
+        filename: Original filename
         content_type: MIME type of the file
-        folder_path: Path within storage bucket
+        folder_path: Path within storage bucket (default: "uploads")
         
     Returns:
-        Public URL of the uploaded file
+        Signed URL for accessing the uploaded file
     """
     try:
-        # Secure the filename
-        secure_name = secure_filename(original_filename)
+        bucket = storage.bucket(os.getenv("FIREBASE_STORAGE_BUCKET"))
         
-        # Generate a unique filename to prevent collisions
-        unique_id = str(uuid.uuid4())
-        filename_parts = os.path.splitext(secure_name)
-        unique_filename = f"{filename_parts[0]}_{unique_id}{filename_parts[1]}"
+        # Create a unique filename to prevent collisions
+        unique_filename = f"{uuid.uuid4().hex}_{secure_filename(filename)}"
         
-        # Get the storage bucket
-        bucket = storage.bucket()
+        # Create full path with folder structure
+        full_path = f"{folder_path}/{unique_filename}"
         
-        # Create a blob and upload the file
-        blob_path = f"{folder_path}/{unique_filename}"
+        # Create blob and upload
+        blob = bucket.blob(full_path)
+        blob.upload_from_file(file_stream, content_type=content_type)
+        
+        # Set appropriate metadata
+        metadata = {
+            'contentType': content_type,
+            'uploadTime': datetime.now().isoformat()
+        }
+        blob.metadata = metadata
+        blob.patch()
+        
+        # Set appropriate access control
+        blob.make_private()
+        
+        # Generate signed URL with longer expiration (7 days)
+        expiration_time = datetime.now() + timedelta(days=7)
+        signed_url = blob.generate_signed_url(
+            expiration=int(expiration_time.timestamp()),
+            method='GET'
+        )
+        
+        logger.info(f"Media uploaded successfully to {full_path}")
+        return signed_url
+        
+    except Exception as e:
+        logger.error(f"Error uploading media to Firebase: {str(e)}")
+        raise
+
+def delete_media_from_firebase(media_url):
+    """
+    Delete media file from Firebase Storage based on URL.
+    
+    Args:
+        media_url: The signed URL of the file to delete
+        
+    Returns:
+        Boolean indicating success
+    """
+    try:
+        # Extract the path from the URL
+        # This is a simplified approach and may need adjustment based on URL format
+        bucket = storage.bucket(os.getenv("FIREBASE_STORAGE_BUCKET"))
+        
+        # Parse the URL to extract the blob path
+        # Example URL: https://storage.googleapis.com/bucket-name.appspot.com/path/to/file?token=...
+        url_parts = media_url.split('?')[0]  # Remove query parameters
+        path_parts = url_parts.split(f"{bucket.name}.appspot.com/")
+        
+        if len(path_parts) < 2:
+            logger.error(f"Could not parse blob path from URL: {media_url}")
+            return False
+            
+        blob_path = path_parts[1]
         blob = bucket.blob(blob_path)
         
-        # Set content type
-        blob.content_type = content_type
-        
-        # Upload the file
-        blob.upload_from_file(file_stream)
-        
-        # Make the blob publicly accessible
-        blob.make_public()
-        
-        # Get the public URL
-        public_url = blob.public_url
-        
-        logger.info(f"✅ File uploaded to: {public_url}")
-        return public_url
+        if not blob.exists():
+            logger.warning(f"Blob does not exist: {blob_path}")
+            return False
+            
+        blob.delete()
+        logger.info(f"Media deleted successfully: {blob_path}")
+        return True
         
     except Exception as e:
-        logger.error(f"❌ Error uploading file to Firebase: {str(e)}")
-        logger.error(traceback.format_exc())
-        raise
+        logger.error(f"Error deleting media from Firebase: {str(e)}")
+        return False
 
-def download_media_from_url(url):
+def get_media_metadata(media_url):
     """
-    Download media from a URL.
+    Get metadata for a media file in Firebase Storage.
     
     Args:
-        url: URL of the media to download
+        media_url: The signed URL of the file
         
     Returns:
-        Tuple of (file_content, content_type)
+        Dictionary of metadata or None if error
     """
     try:
-        response = requests.get(url, stream=True)
-        response.raise_for_status()
+        # Extract the path from the URL
+        bucket = storage.bucket(os.getenv("FIREBASE_STORAGE_BUCKET"))
         
-        content_type = response.headers.get('Content-Type', 'application/octet-stream')
+        # Parse the URL to extract the blob path
+        url_parts = media_url.split('?')[0]  # Remove query parameters
+        path_parts = url_parts.split(f"{bucket.name}.appspot.com/")
         
-        logger.info(f"✅ Downloaded media from: {url}")
-        return response.content, content_type
+        if len(path_parts) < 2:
+            logger.error(f"Could not parse blob path from URL: {media_url}")
+            return None
+            
+        blob_path = path_parts[1]
+        blob = bucket.blob(blob_path)
+        
+        if not blob.exists():
+            logger.warning(f"Blob does not exist: {blob_path}")
+            return None
+            
+        blob.reload()  # Ensure we have the latest metadata
+        
+        metadata = {
+            'name': blob.name,
+            'bucket': blob.bucket.name,
+            'size': blob.size,
+            'content_type': blob.content_type,
+            'time_created': blob.time_created,
+            'updated': blob.updated,
+            'custom_metadata': blob.metadata
+        }
+        
+        return metadata
         
     except Exception as e:
-        logger.error(f"❌ Error downloading media from URL: {str(e)}")
-        logger.error(traceback.format_exc())
-        raise
-
-def process_twilio_media(media_url):
-    """
-    Process media from Twilio and upload to Firebase.
-    
-    Args:
-        media_url: Twilio media URL
-        
-    Returns:
-        Firebase Storage URL
-    """
-    try:
-        # Download media from Twilio
-        content, content_type = download_media_from_url(media_url)
-        
-        # Determine file extension based on content type
-        extension = '.jpg'  # Default
-        if 'image/jpeg' in content_type:
-            extension = '.jpg'
-        elif 'image/png' in content_type:
-            extension = '.png'
-        elif 'image/gif' in content_type:
-            extension = '.gif'
-        elif 'video/' in content_type:
-            extension = '.mp4'
-        elif 'audio/' in content_type:
-            extension = '.mp3'
-            
-        # Create a temporary file
-        temp_filename = f"twilio_media_{uuid.uuid4()}{extension}"
-        temp_path = f"/tmp/{temp_filename}"
-        
-        with open(temp_path, 'wb') as f:
-            f.write(content)
-            
-        # Upload to Firebase
-        with open(temp_path, 'rb') as f:
-            firebase_url = upload_media_to_firebase(
-                f, 
-                temp_filename, 
-                content_type, 
-                "sms_uploads"
-            )
-            
-        # Clean up temporary file
-        os.remove(temp_path)
-        
-        logger.info(f"✅ Processed Twilio media to: {firebase_url}")
-        return firebase_url
-        
-    except Exception as e:
-        logger.error(f"❌ Error processing Twilio media: {str(e)}")
-        logger.error(traceback.format_exc())
+        logger.error(f"Error getting media metadata: {str(e)}")
         return None

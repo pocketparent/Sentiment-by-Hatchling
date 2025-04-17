@@ -1,3 +1,4 @@
+import axiosInstance from './axios/axiosInstance';
 import { JournalEntry } from '../types';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL
@@ -5,37 +6,22 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL
   : '/api/entry';
 
 export async function fetchEntries(filters = {}): Promise<JournalEntry[]> {
-  // Build query string from filters
-  const queryParams = new URLSearchParams();
-  
-  Object.entries(filters).forEach(([key, value]) => {
-    if (value) {
-      queryParams.append(key, value.toString());
-    }
-  });
-  
-  const queryString = queryParams.toString();
-  const url = queryString ? `${API_BASE}?${queryString}` : API_BASE;
-  
   try {
-    const response = await fetch(url, {
-      headers: {
-        'X-User-ID': localStorage.getItem('userId') || 'demo'
+    // Build query params from filters
+    const params = {};
+    
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value) {
+        params[key] = value.toString();
       }
     });
     
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('❌ Error fetching entries:', errorText);
-      throw new Error('Failed to fetch journal entries');
-    }
+    const response = await axiosInstance.get(API_BASE, { params });
     
-    const data = await response.json();
-    return data.entries || [];
+    return response.data.entries || [];
   } catch (error) {
     console.error('❌ Fetch entries error:', error);
-    // Return empty array instead of throwing to prevent UI breakage
-    return [];
+    throw error;
   }
 }
 
@@ -72,25 +58,14 @@ export async function createEntry(formData: FormData): Promise<JournalEntry> {
       console.log(`📦 ${key}:`, value);
     }
 
-    const response = await fetch(API_BASE, {
-      method: 'POST',
-      body: formData,
+    const response = await axiosInstance.post(API_BASE, formData, {
       headers: {
-        'X-User-ID': localStorage.getItem('userId') || 'demo'
+        'Content-Type': 'multipart/form-data',
       }
     });
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => null) || await response.text();
-      console.error('❌ Server error response:', errorData);
-      throw new Error(typeof errorData === 'object' && errorData.error 
-        ? errorData.error 
-        : 'Failed to create entry');
-    }
-
-    const result = await response.json();
-    console.log('✅ Entry created successfully:', result);
-    return result.entry || result; // Handle both response formats
+    console.log('✅ Entry created successfully:', response.data);
+    return response.data.entry;
   } catch (error) {
     console.error('❌ Create entry error:', error);
     throw error;
@@ -110,25 +85,14 @@ export async function updateEntry(id: string, formData: FormData): Promise<Journ
       console.log(`📦 ${key}:`, value);
     }
 
-    const response = await fetch(`${API_BASE}/${id}`, {
-      method: 'PATCH',
-      body: formData,
+    const response = await axiosInstance.patch(`${API_BASE}/${id}`, formData, {
       headers: {
-        'X-User-ID': localStorage.getItem('userId') || 'demo'
+        'Content-Type': 'multipart/form-data',
       }
     });
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => null) || await response.text();
-      console.error('❌ Server error response:', errorData);
-      throw new Error(typeof errorData === 'object' && errorData.error 
-        ? errorData.error 
-        : 'Failed to update entry');
-    }
-
-    const result = await response.json();
-    console.log('✅ Entry updated successfully:', result);
-    return result.entry || result; // Handle both response formats
+    console.log('✅ Entry updated successfully:', response.data);
+    return response.data.entry;
   } catch (error) {
     console.error('❌ Update entry error:', error);
     throw error;
@@ -143,23 +107,9 @@ export async function deleteEntry(id: string): Promise<{ success: boolean }> {
     
     console.log(`🗑️ Deleting entry ${id}`);
     
-    const response = await fetch(`${API_BASE}/${id}`, {
-      method: 'DELETE',
-      headers: {
-        'X-User-ID': localStorage.getItem('userId') || 'demo'
-      }
-    });
+    const response = await axiosInstance.delete(`${API_BASE}/${id}`);
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => null) || await response.text();
-      console.error('❌ Server error response:', errorData);
-      throw new Error(typeof errorData === 'object' && errorData.error 
-        ? errorData.error 
-        : 'Failed to delete entry');
-    }
-
-    const result = await response.json();
-    console.log('✅ Entry deleted successfully:', result);
+    console.log('✅ Entry deleted successfully:', response.data);
     return { success: true };
   } catch (error) {
     console.error('❌ Delete entry error:', error);
@@ -175,29 +125,16 @@ export async function getEntryById(id: string): Promise<JournalEntry> {
     
     console.log(`🔍 Fetching entry ${id}`);
     
-    const response = await fetch(`${API_BASE}/${id}`, {
-      headers: {
-        'X-User-ID': localStorage.getItem('userId') || 'demo'
-      }
-    });
+    const response = await axiosInstance.get(`${API_BASE}/${id}`);
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => null) || await response.text();
-      console.error('❌ Server error response:', errorData);
-      throw new Error(typeof errorData === 'object' && errorData.error 
-        ? errorData.error 
-        : 'Failed to fetch entry');
-    }
-
-    const result = await response.json();
-    return result.entry || result; // Handle both response formats
+    return response.data.entry;
   } catch (error) {
     console.error('❌ Get entry error:', error);
     throw error;
   }
 }
 
-export async function generateAITags(content: string): Promise<string[]> {
+export async function generateAITags(content: string, mediaUrl?: string, mediaType?: string): Promise<string[]> {
   try {
     if (!content || content.trim().length < 10) {
       console.log('⚠️ Content too short for AI tag generation');
@@ -206,71 +143,21 @@ export async function generateAITags(content: string): Promise<string[]> {
     
     console.log('🤖 Requesting AI tags for content');
     
-    // Try to use the backend endpoint
-    try {
-      const response = await fetch(`${API_BASE}/generate-tags`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-User-ID': localStorage.getItem('userId') || 'demo'
-        },
-        body: JSON.stringify({ content })
-      });
-
-      if (!response.ok) {
-        throw new Error('API endpoint returned an error');
-      }
-
-      const result = await response.json();
-      console.log('✅ AI tags generated from API:', result.tags);
-      return result.tags || [];
-    } catch (apiError) {
-      console.error('❌ API tag generation failed, using fallback:', apiError);
-      
-      // Generate fallback tags based on content
-      const fallbackTags = generateFallbackTags(content);
-      console.log('✅ Fallback tags generated:', fallbackTags);
-      return fallbackTags;
+    const payload: any = { content };
+    
+    // Add media information if available
+    if (mediaUrl) {
+      payload.media_url = mediaUrl;
+      payload.media_type = mediaType || 'image/jpeg';
+      console.log('📷 Including media in AI tag generation:', mediaUrl);
     }
+    
+    const response = await axiosInstance.post(`${API_BASE}/generate-tags`, payload);
+    console.log('✅ AI tags generated:', response.data.tags);
+    return response.data.tags || [];
   } catch (error) {
     console.error('❌ AI tag generation error:', error);
-    // Return fallback tags instead of empty array
-    return generateFallbackTags(content);
+    // Return empty array instead of throwing to prevent UI errors
+    return [];
   }
-}
-
-// Helper function to generate fallback tags based on content
-function generateFallbackTags(content: string): string[] {
-  const lowerContent = content.toLowerCase();
-  const tags: string[] = [];
-  
-  // Check for common keywords
-  if (lowerContent.includes('baby') || lowerContent.includes('infant') || lowerContent.includes('newborn')) {
-    tags.push('baby');
-  }
-  if (lowerContent.includes('sleep') || lowerContent.includes('nap') || lowerContent.includes('bedtime')) {
-    tags.push('sleep');
-  }
-  if (lowerContent.includes('food') || lowerContent.includes('eat') || lowerContent.includes('feeding')) {
-    tags.push('food');
-  }
-  if (lowerContent.includes('smile') || lowerContent.includes('laugh') || lowerContent.includes('happy')) {
-    tags.push('happy');
-  }
-  if (lowerContent.includes('cry') || lowerContent.includes('sad') || lowerContent.includes('tears')) {
-    tags.push('emotional');
-  }
-  if (lowerContent.includes('walk') || lowerContent.includes('crawl') || lowerContent.includes('step')) {
-    tags.push('milestone');
-  }
-  if (lowerContent.includes('doctor') || lowerContent.includes('sick') || lowerContent.includes('health')) {
-    tags.push('health');
-  }
-  
-  // Add a default tag if none were found
-  if (tags.length === 0) {
-    tags.push('memory');
-  }
-  
-  return tags;
 }
