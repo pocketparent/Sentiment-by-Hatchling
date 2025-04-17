@@ -3,7 +3,7 @@ import { JournalEntry } from '../types';
 import { EntryFilters } from '../types/entry';
 import EntryCard from './EntryCard';
 import EmptyState from './EmptyState';
-import { Settings, Trash, Search, Tag, Filter, Calendar, User, Eye, Download, FileText } from 'lucide-react';
+import { Settings, Trash, Search, Tag, Filter, Calendar, User, Eye, Download, FileText, CheckSquare } from 'lucide-react';
 import EntryModal from './EntryModal';
 import { deleteEntry } from '../api/entries';
 
@@ -25,6 +25,8 @@ const JournalView: React.FC<Props> = ({ entries, onSelectEntry, onOpenSettings, 
   const [error, setError] = useState('');
   const [showExportOptions, setShowExportOptions] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [selectedEntries, setSelectedEntries] = useState<string[]>([]);
 
   // Initialize filtered entries with all entries
   useEffect(() => {
@@ -63,6 +65,17 @@ const JournalView: React.FC<Props> = ({ entries, onSelectEntry, onOpenSettings, 
     } catch (err) {
       console.error(err);
       alert("Error deleting memory.");
+    }
+  };
+
+  const handleViewEntry = (entry: JournalEntry) => {
+    if (isSelectionMode) {
+      // In selection mode, toggle selection instead of viewing
+      toggleEntrySelection(entry.entry_id);
+    } else {
+      // In normal mode, view the entry
+      setSelectedEntry(entry);
+      setShowModal(true);
     }
   };
 
@@ -114,24 +127,67 @@ const JournalView: React.FC<Props> = ({ entries, onSelectEntry, onOpenSettings, 
   };
 
   // Export functions
-  const exportToPDF = (entryId?: string) => {
+  const exportToPDF = (entryIds?: string[]) => {
     setExportLoading(true);
-    const endpoint = entryId 
-      ? `/api/export/pdf?entry_id=${entryId}` 
-      : '/api/export/pdf';
+    let endpoint = '/api/export/pdf';
+    
+    if (entryIds && entryIds.length === 1) {
+      // Single entry export
+      endpoint = `/api/export/pdf?entry_id=${entryIds[0]}`;
+    } else if (entryIds && entryIds.length > 1) {
+      // Multiple entries export
+      endpoint = `/api/export/pdf?entry_ids=${entryIds.join(',')}`;
+    }
     
     window.location.href = endpoint;
     setTimeout(() => setExportLoading(false), 1000);
   };
 
-  const exportToCSV = (entryId?: string) => {
+  const exportToCSV = (entryIds?: string[]) => {
     setExportLoading(true);
-    const endpoint = entryId 
-      ? `/api/export/csv?entry_id=${entryId}` 
-      : '/api/export/csv';
+    let endpoint = '/api/export/csv';
+    
+    if (entryIds && entryIds.length === 1) {
+      // Single entry export
+      endpoint = `/api/export/csv?entry_id=${entryIds[0]}`;
+    } else if (entryIds && entryIds.length > 1) {
+      // Multiple entries export
+      endpoint = `/api/export/csv?entry_ids=${entryIds.join(',')}`;
+    }
     
     window.location.href = endpoint;
     setTimeout(() => setExportLoading(false), 1000);
+  };
+
+  // Selection mode functions
+  const toggleSelectionMode = () => {
+    setIsSelectionMode(!isSelectionMode);
+    setSelectedEntries([]);
+  };
+
+  const toggleEntrySelection = (entryId: string) => {
+    setSelectedEntries(prev => 
+      prev.includes(entryId) 
+        ? prev.filter(id => id !== entryId) 
+        : [...prev, entryId]
+    );
+  };
+
+  const exportSelectedEntries = (format: 'pdf' | 'csv') => {
+    if (selectedEntries.length === 0) {
+      alert('Please select at least one entry to export');
+      return;
+    }
+    
+    if (format === 'pdf') {
+      exportToPDF(selectedEntries);
+    } else {
+      exportToCSV(selectedEntries);
+    }
+    
+    // Exit selection mode after export
+    setIsSelectionMode(false);
+    setSelectedEntries([]);
   };
 
   return (
@@ -148,12 +204,23 @@ const JournalView: React.FC<Props> = ({ entries, onSelectEntry, onOpenSettings, 
             setSelectedEntry(null);
             onRefresh();
           }}
+          viewOnly={true} // Start in view-only mode
         />
       )}
 
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex justify-center items-center mb-6">
         <h2 className="text-2xl font-semibold text-clay-brown">Your Memories</h2>
-        <div className="flex items-center space-x-2">
+        <div className="absolute right-4 flex items-center space-x-2">
+          {/* Selection mode toggle */}
+          <button
+            className={`text-clay-brown hover:text-black transition ${isSelectionMode ? 'bg-soft-beige p-1 rounded-full' : ''}`}
+            aria-label={isSelectionMode ? "Exit Selection Mode" : "Enter Selection Mode"}
+            onClick={toggleSelectionMode}
+            title={isSelectionMode ? "Exit Selection Mode" : "Select Multiple Entries"}
+          >
+            <CheckSquare size={20} />
+          </button>
+          
           {/* Export dropdown */}
           <div className="relative">
             <button
@@ -166,28 +233,51 @@ const JournalView: React.FC<Props> = ({ entries, onSelectEntry, onOpenSettings, 
             
             {showExportOptions && (
               <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-lg py-1 z-10 border border-warm-sand">
-                <button
-                  onClick={() => {
-                    exportToPDF();
-                    setShowExportOptions(false);
-                  }}
-                  disabled={exportLoading}
-                  className="flex items-center px-4 py-2 text-sm text-clay-brown hover:bg-soft-beige w-full text-left"
-                >
-                  <FileText size={16} className="mr-2" />
-                  Export all as PDF
-                </button>
-                <button
-                  onClick={() => {
-                    exportToCSV();
-                    setShowExportOptions(false);
-                  }}
-                  disabled={exportLoading}
-                  className="flex items-center px-4 py-2 text-sm text-clay-brown hover:bg-soft-beige w-full text-left"
-                >
-                  <FileText size={16} className="mr-2" />
-                  Export all as CSV
-                </button>
+                {isSelectionMode && selectedEntries.length > 0 ? (
+                  <>
+                    <button
+                      onClick={() => exportSelectedEntries('pdf')}
+                      disabled={exportLoading}
+                      className="flex items-center px-4 py-2 text-sm text-clay-brown hover:bg-soft-beige w-full text-left"
+                    >
+                      <FileText size={16} className="mr-2" />
+                      Export selected as PDF
+                    </button>
+                    <button
+                      onClick={() => exportSelectedEntries('csv')}
+                      disabled={exportLoading}
+                      className="flex items-center px-4 py-2 text-sm text-clay-brown hover:bg-soft-beige w-full text-left"
+                    >
+                      <FileText size={16} className="mr-2" />
+                      Export selected as CSV
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => {
+                        exportToPDF();
+                        setShowExportOptions(false);
+                      }}
+                      disabled={exportLoading}
+                      className="flex items-center px-4 py-2 text-sm text-clay-brown hover:bg-soft-beige w-full text-left"
+                    >
+                      <FileText size={16} className="mr-2" />
+                      Export all as PDF
+                    </button>
+                    <button
+                      onClick={() => {
+                        exportToCSV();
+                        setShowExportOptions(false);
+                      }}
+                      disabled={exportLoading}
+                      className="flex items-center px-4 py-2 text-sm text-clay-brown hover:bg-soft-beige w-full text-left"
+                    >
+                      <FileText size={16} className="mr-2" />
+                      Export all as CSV
+                    </button>
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -201,6 +291,37 @@ const JournalView: React.FC<Props> = ({ entries, onSelectEntry, onOpenSettings, 
           </button>
         </div>
       </div>
+
+      {/* Selection mode info bar */}
+      {isSelectionMode && (
+        <div className="mb-4 p-3 bg-soft-beige rounded-xl flex justify-between items-center">
+          <span className="text-sm text-clay-brown">
+            {selectedEntries.length} {selectedEntries.length === 1 ? 'entry' : 'entries'} selected
+          </span>
+          <div className="flex space-x-2">
+            <button
+              onClick={() => exportSelectedEntries('pdf')}
+              disabled={selectedEntries.length === 0 || exportLoading}
+              className="px-3 py-1 text-xs bg-clay-brown text-white rounded-lg hover:bg-blush-pink transition-colors disabled:opacity-50"
+            >
+              Export as PDF
+            </button>
+            <button
+              onClick={() => exportSelectedEntries('csv')}
+              disabled={selectedEntries.length === 0 || exportLoading}
+              className="px-3 py-1 text-xs bg-clay-brown text-white rounded-lg hover:bg-blush-pink transition-colors disabled:opacity-50"
+            >
+              Export as CSV
+            </button>
+            <button
+              onClick={toggleSelectionMode}
+              className="px-3 py-1 text-xs bg-warm-sand text-clay-brown rounded-lg hover:bg-blush-pink transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Search bar */}
       <div className="relative mb-4">
@@ -361,69 +482,46 @@ const JournalView: React.FC<Props> = ({ entries, onSelectEntry, onOpenSettings, 
           {filteredEntries.map((entry) => (
             <div
               key={entry.entry_id}
-              className="relative bg-white rounded-2xl p-4 shadow-sm border border-warm-sand hover:border-blush-pink transition-colors"
+              className={`relative bg-white rounded-2xl p-4 shadow-sm border ${
+                selectedEntries.includes(entry.entry_id) 
+                  ? 'border-clay-brown' 
+                  : 'border-warm-sand hover:border-blush-pink'
+              } transition-colors`}
             >
-              <div className="flex-grow cursor-pointer" onClick={() => handleEditEntry(entry)}>
-                <EntryCard entry={entry} onClick={() => handleEditEntry(entry)} />
+              {isSelectionMode && (
+                <div className="absolute top-4 left-4 z-10">
+                  <input
+                    type="checkbox"
+                    checked={selectedEntries.includes(entry.entry_id)}
+                    onChange={() => toggleEntrySelection(entry.entry_id)}
+                    className="h-5 w-5 rounded text-clay-brown focus:ring-blush-pink"
+                    aria-label={`Select entry ${entry.content?.substring(0, 20)}...`}
+                  />
+                </div>
+              )}
+              
+              <div 
+                className={`flex-grow cursor-pointer ${isSelectionMode ? 'pl-8' : ''}`} 
+                onClick={() => handleViewEntry(entry)}
+              >
+                <EntryCard entry={entry} onClick={() => handleViewEntry(entry)} />
               </div>
-              <div className="absolute top-4 right-4 flex space-x-2">
-                {/* Export dropdown for individual entry */}
-                <div className="relative">
+              
+              {!isSelectionMode && (
+                <div className="absolute top-4 right-4 flex space-x-2">
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      setSelectedEntry(entry);
-                      setShowExportOptions(prev => selectedEntry?.entry_id === entry.entry_id ? !prev : true);
+                      handleDelete(entry.entry_id);
                     }}
-                    className="text-dusty-taupe hover:text-clay-brown transition-colors"
-                    title="Export Memory"
-                    aria-label="Export Memory"
+                    className="text-dusty-taupe hover:text-red-500 transition-colors"
+                    title="Delete Memory"
+                    aria-label="Delete Memory"
                   >
-                    <Download size={16} />
+                    <Trash size={16} />
                   </button>
-                  
-                  {showExportOptions && selectedEntry?.entry_id === entry.entry_id && (
-                    <div className="absolute right-0 mt-2 w-40 bg-white rounded-xl shadow-lg py-1 z-10 border border-warm-sand">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          exportToPDF(entry.entry_id);
-                          setShowExportOptions(false);
-                        }}
-                        disabled={exportLoading}
-                        className="flex items-center px-3 py-2 text-xs text-clay-brown hover:bg-soft-beige w-full text-left"
-                      >
-                        <FileText size={14} className="mr-2" />
-                        Export as PDF
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          exportToCSV(entry.entry_id);
-                          setShowExportOptions(false);
-                        }}
-                        disabled={exportLoading}
-                        className="flex items-center px-3 py-2 text-xs text-clay-brown hover:bg-soft-beige w-full text-left"
-                      >
-                        <FileText size={14} className="mr-2" />
-                        Export as CSV
-                      </button>
-                    </div>
-                  )}
                 </div>
-                
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleDelete(entry.entry_id);
-                  }}
-                  className="text-dusty-taupe hover:text-red-500 transition-colors"
-                  title="Delete Memory"
-                  aria-label="Delete Memory"
-                >
-                  <Trash size={16} />
-                </button>
-              </div>
+              )}
             </div>
           ))}
         </div>

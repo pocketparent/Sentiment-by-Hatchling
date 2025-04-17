@@ -5,6 +5,8 @@ import logging
 import traceback
 from datetime import datetime
 import re
+import random
+import string
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -12,6 +14,9 @@ logger = logging.getLogger(__name__)
 
 sms_bp = Blueprint("sms", __name__)
 db = firestore.client()
+
+# Store verification codes in memory (in production, use a more persistent solution)
+verification_codes = {}
 
 @sms_bp.route("/webhook", methods=["POST"])
 def sms_webhook():
@@ -185,6 +190,138 @@ def sms_status():
         "status": "active",
         "message": "SMS integration is active and ready to receive messages"
     }), 200
+
+@sms_bp.route("/verify", methods=["POST"])
+def verify_phone():
+    """
+    Send a verification code to a phone number.
+    
+    POST parameters:
+    - phone_number: Phone number to verify
+    - user_id: User ID to associate with the phone number
+    """
+    try:
+        data = request.json
+        phone_number = data.get("phone_number")
+        user_id = data.get("user_id")
+        
+        if not phone_number or not user_id:
+            return jsonify({"success": False, "message": "Missing required fields: phone_number or user_id"}), 400
+        
+        # Generate a 6-digit verification code
+        verification_code = ''.join(random.choices(string.digits, k=6))
+        
+        # Store the verification code (in production, use a more secure method with expiration)
+        verification_codes[phone_number] = {
+            "code": verification_code,
+            "user_id": user_id,
+            "created_at": datetime.now()
+        }
+        
+        # In a real implementation, you would send an SMS here using a service like Twilio
+        # For this demo, we'll just log it and pretend it was sent
+        logger.info(f"📤 Verification code for {phone_number}: {verification_code}")
+        
+        # For testing purposes, store the code in Firestore so we can see it
+        db.collection("verification_codes").add({
+            "phone_number": phone_number,
+            "code": verification_code,
+            "user_id": user_id,
+            "timestamp": firestore.SERVER_TIMESTAMP,
+            "used": False
+        })
+        
+        return jsonify({
+            "success": True,
+            "message": f"Verification code sent to {phone_number}"
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"❌ Error sending verification code: {str(e)}")
+        logger.error(traceback.format_exc())
+        return jsonify({"success": False, "message": f"Failed to send verification code: {str(e)}"}), 500
+
+@sms_bp.route("/confirm", methods=["POST"])
+def confirm_verification():
+    """
+    Confirm a verification code.
+    
+    POST parameters:
+    - phone_number: Phone number being verified
+    - code: Verification code to confirm
+    - user_id: User ID to associate with the phone number
+    """
+    try:
+        data = request.json
+        phone_number = data.get("phone_number")
+        code = data.get("code")
+        user_id = data.get("user_id")
+        
+        if not phone_number or not code or not user_id:
+            return jsonify({"success": False, "message": "Missing required fields"}), 400
+        
+        # Check if the verification code is valid
+        stored_data = verification_codes.get(phone_number)
+        
+        # For testing purposes, also check Firestore
+        if not stored_data:
+            # Try to find the code in Firestore
+            code_query = db.collection("verification_codes")\
+                .where("phone_number", "==", phone_number)\
+                .where("code", "==", code)\
+                .where("used", "==", False)\
+                .limit(1).stream()
+            
+            code_docs = list(code_query)
+            if code_docs:
+                code_doc = code_docs[0]
+                code_data = code_doc.to_dict()
+                stored_data = {
+                    "code": code_data.get("code"),
+                    "user_id": code_data.get("user_id"),
+                    "created_at": datetime.now()  # Approximate
+                }
+                
+                # Mark the code as used
+                db.collection("verification_codes").document(code_doc.id).update({
+                    "used": True,
+                    "verified_at": firestore.SERVER_TIMESTAMP
+                })
+        
+        if not stored_data:
+            return jsonify({"success": False, "message": "Invalid verification code"}), 400
+        
+        if stored_data.get("code") != code:
+            return jsonify({"success": False, "message": "Invalid verification code"}), 400
+        
+        if stored_data.get("user_id") != user_id:
+            return jsonify({"success": False, "message": "User ID mismatch"}), 400
+        
+        # Check if the code is expired (30 minutes)
+        created_at = stored_data.get("created_at")
+        if (datetime.now() - created_at).total_seconds() > 1800:
+            return jsonify({"success": False, "message": "Verification code expired"}), 400
+        
+        # Update the user's phone number in Firestore
+        db.collection("users").document(user_id).update({
+            "phone_number": phone_number,
+            "phone_verified": True,
+            "phone_verified_at": firestore.SERVER_TIMESTAMP
+        })
+        
+        # Remove the verification code
+        if phone_number in verification_codes:
+            del verification_codes[phone_number]
+        
+        return jsonify({
+            "success": True,
+            "message": "Phone number verified successfully"
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"❌ Error confirming verification code: {str(e)}")
+        logger.error(traceback.format_exc())
+        return jsonify({"success": False, "message": f"Failed to confirm verification code: {str(e)}"}), 500
 
 @sms_bp.route("/test", methods=["POST"])
 def test_sms():

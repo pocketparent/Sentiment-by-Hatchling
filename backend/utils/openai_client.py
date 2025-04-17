@@ -2,6 +2,7 @@ from openai import OpenAI
 import os
 import tempfile
 import logging
+import base64
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -9,39 +10,115 @@ logger = logging.getLogger(__name__)
 # Initialize OpenAI client
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-def get_ai_tags(content):
+def get_ai_tags(content, media_url=None, media_type=None):
     """
     Generate tags for a journal entry using OpenAI.
     
     Args:
         content: The text content to generate tags for
+        media_url: Optional URL to media file (image, video)
+        media_type: Media MIME type
         
     Returns:
         List of generated tags
     """
     try:
-        logger.info("🔍 Generating AI tags for content")
+        logger.info("🔍 Generating AI tags for content and media")
         
-        # Skip if content is too short
-        if len(content.strip()) < 10:
-            logger.info("Content too short for tag generation")
+        # Skip if content is too short and no media
+        if len(content.strip()) < 10 and not media_url:
+            logger.info("Content too short for tag generation and no media provided")
             return []
-            
-        response = client.chat.completions.create(
-            model="gpt-4",
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You are a helpful assistant who extracts 3-5 short descriptive tags from a journal entry. Focus on key themes, emotions, activities, or milestones. Return only a comma-separated list of tags, no explanation."
-                },
-                {
+        
+        messages = [
+            {
+                "role": "system",
+                "content": "You are a helpful assistant who extracts 3-5 short descriptive tags from a journal entry. Focus on key themes, emotions, activities, or milestones. Return only a comma-separated list of tags, no explanation."
+            }
+        ]
+        
+        # If we have an image, analyze it using vision model
+        if media_url and media_type and media_type.startswith('image/'):
+            try:
+                # For local files that start with /
+                if media_url.startswith('/'):
+                    # Read the image file and encode as base64
+                    with open(media_url, 'rb') as image_file:
+                        image_data = base64.b64encode(image_file.read()).decode('utf-8')
+                        
+                    # Create a data URL
+                    data_url = f"data:{media_type};base64,{image_data}"
+                    
+                    # Use GPT-4 Vision to analyze the image
+                    messages.append({
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": f"Please provide tags for this memory based on both the text and image:\n\n{content}"},
+                            {
+                                "type": "image_url",
+                                "image_url": {"url": data_url}
+                            }
+                        ]
+                    })
+                    
+                    # Use GPT-4 Vision model
+                    response = client.chat.completions.create(
+                        model="gpt-4-vision-preview",
+                        messages=messages,
+                        max_tokens=50,
+                        temperature=0.5
+                    )
+                else:
+                    # For remote URLs
+                    messages.append({
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": f"Please provide tags for this memory based on both the text and image:\n\n{content}"},
+                            {
+                                "type": "image_url",
+                                "image_url": {"url": media_url}
+                            }
+                        ]
+                    })
+                    
+                    # Use GPT-4 Vision model
+                    response = client.chat.completions.create(
+                        model="gpt-4-vision-preview",
+                        messages=messages,
+                        max_tokens=50,
+                        temperature=0.5
+                    )
+                
+                logger.info("Successfully analyzed image for tag generation")
+                
+            except Exception as e:
+                logger.error(f"❌ Image analysis failed: {str(e)}")
+                # Fall back to text-only analysis
+                messages.append({
                     "role": "user",
                     "content": f"Please provide tags for this memory:\n\n{content}"
-                }
-            ],
-            max_tokens=50,
-            temperature=0.5
-        )
+                })
+                
+                response = client.chat.completions.create(
+                    model="gpt-4",
+                    messages=messages,
+                    max_tokens=50,
+                    temperature=0.5
+                )
+        else:
+            # Text-only analysis
+            messages.append({
+                "role": "user",
+                "content": f"Please provide tags for this memory:\n\n{content}"
+            })
+            
+            response = client.chat.completions.create(
+                model="gpt-4",
+                messages=messages,
+                max_tokens=50,
+                temperature=0.5
+            )
+            
         raw = response.choices[0].message.content
         logger.info(f"🔁 Raw response from OpenAI: {raw}")
 
