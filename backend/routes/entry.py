@@ -5,6 +5,7 @@ from utils.openai_client import transcribe_audio, get_ai_tags
 import logging
 import traceback
 from datetime import datetime
+from google.cloud.firestore_v1.base_query import FieldFilter
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -170,25 +171,49 @@ def get_entries():
             query = query.where("privacy", "==", privacy_filter)
             
         # Apply sorting
-        query = query.order_by("date_of_memory", direction=direction)
-        
-        # Execute query
-        docs = query.stream()
-        
-        # Process results
-        entries = []
-        for doc in docs:
-            entry = doc.to_dict()
-            entry["entry_id"] = doc.id
+        try:
+            query = query.order_by("date_of_memory", direction=direction)
             
-            # Apply tag filter after fetching (Firestore doesn't support array contains in compound queries)
-            if tag_filter and tag_filter not in entry.get("tags", []):
-                continue
+            # Execute query
+            docs = query.stream()
+            
+            # Process results
+            entries = []
+            for doc in docs:
+                entry = doc.to_dict()
+                entry["entry_id"] = doc.id
                 
-            entries.append(entry)
+                # Apply tag filter after fetching (Firestore doesn't support array contains in compound queries)
+                if tag_filter and tag_filter not in entry.get("tags", []):
+                    continue
+                    
+                entries.append(entry)
 
-        logger.info(f"📦 Returning {len(entries)} entries")
-        return jsonify({"entries": entries}), 200
+            logger.info(f"📦 Returning {len(entries)} entries")
+            return jsonify({"entries": entries}), 200
+            
+        except Exception as query_error:
+            # Check if this is an index error
+            error_str = str(query_error)
+            if "The query requires an index" in error_str:
+                logger.error("❌ Firestore index error detected")
+                
+                # Extract the index creation URL if available
+                index_url = None
+                if "https://" in error_str:
+                    index_url = error_str.split("https://")[1].split(" ")[0]
+                    index_url = "https://" + index_url
+                
+                # Return a more helpful error message
+                return jsonify({
+                    "error": "Missing Firestore index",
+                    "details": "This query requires a composite index in Firestore.",
+                    "solution": "Please create the required index in the Firebase console.",
+                    "index_url": index_url
+                }), 400
+            else:
+                # Re-raise for the general exception handler
+                raise
         
     except Exception as e:
         logger.error(f"❌ Error in GET /api/entry: {str(e)}")
@@ -336,6 +361,71 @@ def delete_entry(entry_id):
         logger.error(f"❌ Error in DELETE /api/entry/{entry_id}: {str(e)}")
         logger.error(traceback.format_exc())
         return jsonify({"error": "Delete failed", "details": str(e)}), 500
+
+# Alternative implementation of get_entries that doesn't require a composite index
+@entry_bp.route("/alternative", methods=["GET"])
+def get_entries_alternative():
+    """
+    Alternative implementation of get_entries that doesn't require a composite index.
+    This can be used as a fallback if the index is not yet created.
+    
+    Query parameters:
+    - author_id: Filter by author
+    - tag: Filter by tag
+    - privacy: Filter by privacy level
+    - sort_order: 'asc' or 'desc' (default: 'desc')
+    """
+    try:
+        logger.info("📥 GET /api/entry/alternative hit!")
+        
+        # Get query parameters
+        author_id = request.args.get("author_id")
+        tag_filter = request.args.get("tag")
+        privacy_filter = request.args.get("privacy")
+        sort_order = request.args.get("sort_order", "desc").lower()
+        
+        # Validate sort order
+        if sort_order not in ["asc", "desc"]:
+            sort_order = "desc"
+        
+        # Start with simpler query that doesn't require a composite index
+        # Just filter by deleted_flag
+        query = db.collection("entries").where("deleted_flag", "==", False)
+        
+        # Execute query
+        docs = query.stream()
+        
+        # Process results and apply filters in memory
+        entries = []
+        for doc in docs:
+            entry = doc.to_dict()
+            entry["entry_id"] = doc.id
+            
+            # Apply filters in memory
+            if author_id and entry.get("author_id") != author_id:
+                continue
+                
+            if privacy_filter and entry.get("privacy") != privacy_filter:
+                continue
+                
+            if tag_filter and tag_filter not in entry.get("tags", []):
+                continue
+                
+            entries.append(entry)
+        
+        # Sort in memory
+        entries.sort(
+            key=lambda x: x.get("date_of_memory", ""), 
+            reverse=(sort_order == "desc")
+        )
+
+        logger.info(f"📦 Returning {len(entries)} entries (alternative method)")
+        return jsonify({"entries": entries}), 200
+        
+    except Exception as e:
+        logger.error(f"❌ Error in GET /api/entry/alternative: {str(e)}")
+        logger.error(traceback.format_exc())
+        return jsonify({"error": "Internal server error", "details": str(e)}), 500
 
 # Test routes for development
 @entry_bp.route("/test-openai", methods=["GET"])
