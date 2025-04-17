@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { sendVerificationCode, confirmVerificationCode } from '../api/sms';
 
 interface SMSSetupProps {
@@ -13,6 +13,7 @@ const SMSSetup: React.FC<SMSSetupProps> = ({ userId }) => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [devModeCode, setDevModeCode] = useState<string | null>(null);
 
   // Format phone number as user types
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -38,6 +39,7 @@ const SMSSetup: React.FC<SMSSetupProps> = ({ userId }) => {
   const handleSendVerification = async () => {
     setError('');
     setSuccess('');
+    setDevModeCode(null);
     setIsLoading(true);
     
     // Strip all non-numeric characters for API call
@@ -55,6 +57,12 @@ const SMSSetup: React.FC<SMSSetupProps> = ({ userId }) => {
       if (response.success) {
         setIsVerifying(true);
         setSuccess('Verification code sent! Please check your phone.');
+        
+        // If in development mode and code is provided in response
+        if (response.dev_mode && response.code) {
+          setDevModeCode(response.code);
+          console.log('Development mode: Verification code:', response.code);
+        }
       } else {
         setError(response.message || 'Failed to send verification code');
       }
@@ -103,6 +111,14 @@ const SMSSetup: React.FC<SMSSetupProps> = ({ userId }) => {
     setVerificationCode('');
     setError('');
     setSuccess('');
+    setDevModeCode(null);
+  };
+
+  // Auto-fill verification code in dev mode
+  const handleAutoFill = () => {
+    if (devModeCode) {
+      setVerificationCode(devModeCode);
+    }
   };
 
   return (
@@ -152,6 +168,19 @@ const SMSSetup: React.FC<SMSSetupProps> = ({ userId }) => {
               placeholder="123456"
             />
           </div>
+          
+          {devModeCode && (
+            <div className="bg-yellow-50 p-3 rounded-xl border border-yellow-200">
+              <p className="text-sm text-yellow-800 font-medium">Development Mode</p>
+              <p className="text-sm text-yellow-700">Verification code: {devModeCode}</p>
+              <button 
+                onClick={handleAutoFill}
+                className="text-xs text-blue-600 hover:text-blue-800 underline mt-1"
+              >
+                Auto-fill code
+              </button>
+            </div>
+          )}
           
           {error && (
             <p className="text-red-500 text-sm">{error}</p>

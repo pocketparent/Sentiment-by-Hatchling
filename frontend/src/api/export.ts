@@ -29,14 +29,29 @@ export async function exportEntriesAsCSV(entryIds?: string[]): Promise<Blob> {
       headers: {
         'Accept': 'text/csv',
         'X-User-ID': localStorage.getItem('userId') || 'demo'
-      }
+      },
+      timeout: 15000 // 15 second timeout
     });
+    
+    if (!response.data || response.data.size === 0) {
+      throw new Error('Empty CSV response received');
+    }
     
     console.log('✅ CSV export successful');
     return response.data;
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ CSV export error:', error);
-    throw error;
+    
+    // Provide more specific error messages
+    if (error.message === 'Network Error') {
+      throw new Error('Network error while generating CSV. Please check your connection and try again.');
+    }
+    
+    if (error.response && error.response.status === 404) {
+      throw new Error('CSV export endpoint not found. Please try again later.');
+    }
+    
+    throw new Error('Failed to export entries as CSV');
   }
 }
 
@@ -65,23 +80,38 @@ export async function exportEntriesAsJSON(entryIds?: string[]): Promise<Blob> {
       headers: {
         'Accept': 'application/json',
         'X-User-ID': localStorage.getItem('userId') || 'demo'
-      }
+      },
+      timeout: 15000 // 15 second timeout
     });
+    
+    if (!response.data || response.data.size === 0) {
+      throw new Error('Empty JSON response received');
+    }
     
     console.log('✅ JSON export successful');
     return response.data;
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ JSON export error:', error);
-    throw error;
+    
+    // Provide more specific error messages
+    if (error.message === 'Network Error') {
+      throw new Error('Network error while generating JSON. Please check your connection and try again.');
+    }
+    
+    if (error.response && error.response.status === 404) {
+      throw new Error('JSON export endpoint not found. Please try again later.');
+    }
+    
+    throw new Error('Failed to export entries as JSON');
   }
 }
 
 /**
  * Export entries as PDF
  * @param entryIds Optional array of entry IDs to export
- * @returns Blob of PDF data or null if not implemented
+ * @returns Blob of PDF data
  */
-export async function exportEntriesAsPDF(entryIds?: string[]): Promise<Blob | null> {
+export async function exportEntriesAsPDF(entryIds?: string[]): Promise<Blob> {
   try {
     console.log('📤 Exporting entries as PDF');
     
@@ -101,28 +131,36 @@ export async function exportEntriesAsPDF(entryIds?: string[]): Promise<Blob | nu
       headers: {
         'Accept': 'application/pdf',
         'X-User-ID': localStorage.getItem('userId') || 'demo'
-      }
+      },
+      // Increase timeout for PDF generation which may take longer
+      timeout: 30000
     });
     
-    // Check if we got a PDF or an error response
-    const contentType = response.headers['content-type'];
+    if (!response.data || response.data.size === 0) {
+      throw new Error('Empty PDF response received');
+    }
     
-    if (contentType && contentType.includes('application/pdf')) {
-      console.log('✅ PDF export successful');
-      return response.data;
-    } else {
-      // If we got a JSON response, it's probably an error
-      console.warn('⚠️ PDF export not implemented on server');
-      return null;
-    }
-  } catch (error) {
+    console.log('✅ PDF export successful');
+    return response.data;
+  } catch (error: any) {
     console.error('❌ PDF export error:', error);
-    // Check if it's a 501 Not Implemented error
-    if (error.response && error.response.status === 501) {
-      console.warn('⚠️ PDF export not implemented on server');
-      return null;
+    
+    // Check if this is a 404 error (endpoint not found)
+    if (error.response && error.response.status === 404) {
+      throw new Error('PDF export is not available at this time. Please try CSV or JSON format instead.');
     }
-    throw error;
+    
+    // Handle other specific error cases
+    if (error.message === 'Network Error') {
+      throw new Error('Network error while generating PDF. Please check your connection and try again.');
+    }
+    
+    // Handle blob-related errors
+    if (error.message && error.message.includes('Blob')) {
+      throw new Error('Error processing PDF data. Please try a different export format.');
+    }
+    
+    throw new Error('Failed to export entries as PDF');
   }
 }
 
@@ -132,21 +170,26 @@ export async function exportEntriesAsPDF(entryIds?: string[]): Promise<Blob | nu
  * @param filename The filename to use
  */
 export function downloadBlob(blob: Blob, filename: string): void {
-  // Create a URL for the blob
-  const url = URL.createObjectURL(blob);
-  
-  // Create a temporary link element
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  
-  // Append to the document, click it, and remove it
-  document.body.appendChild(link);
-  link.click();
-  
-  // Clean up
-  setTimeout(() => {
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  }, 100);
+  try {
+    // Create a URL for the blob
+    const url = URL.createObjectURL(blob);
+    
+    // Create a temporary link element
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    
+    // Append to the document, click it, and remove it
+    document.body.appendChild(link);
+    link.click();
+    
+    // Clean up
+    setTimeout(() => {
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }, 100);
+  } catch (error) {
+    console.error('Error downloading blob:', error);
+    throw new Error('Failed to download file');
+  }
 }

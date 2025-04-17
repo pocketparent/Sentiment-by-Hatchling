@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { JournalEntry } from '../types';
 import EntryForm from './EntryForm';
-import { Edit } from 'lucide-react';
+import { Edit, X } from 'lucide-react';
 
 interface EntryModalProps {
   entry: JournalEntry | null;
@@ -42,17 +42,18 @@ const EntryModal: React.FC<EntryModalProps> = ({ entry, onClose, onEntrySaved, v
       onClick={handleOverlayClick}
     >
       <div className="bg-soft-beige rounded-2xl w-full max-w-md p-6 relative shadow-xl max-h-[90vh] overflow-y-auto">
+        {/* Close button - moved to top-right corner with better spacing */}
         <button
-          className="absolute top-4 right-4 text-clay-brown hover:text-black text-xl"
+          className="absolute top-3 right-3 text-clay-brown hover:text-black text-xl p-1 rounded-full hover:bg-warm-sand/50 transition-colors"
           onClick={onClose}
           aria-label="Close"
         >
-          ×
+          <X size={20} />
         </button>
         
         {isEditMode ? (
           <>
-            <h2 className="text-xl font-semibold mb-4 text-clay-brown">
+            <h2 className="text-xl font-semibold mb-4 text-clay-brown pr-8">
               {entry ? 'Edit Memory' : 'New Memory'}
             </h2>
 
@@ -68,9 +69,10 @@ const EntryModal: React.FC<EntryModalProps> = ({ entry, onClose, onEntrySaved, v
               <h2 className="text-xl font-semibold text-clay-brown">
                 Memory
               </h2>
+              {/* Edit button - positioned with proper spacing from close button */}
               <button
                 onClick={() => setIsEditMode(true)}
-                className="flex items-center gap-1 px-3 py-1 bg-clay-brown text-white rounded-lg hover:bg-blush-pink transition-colors text-sm"
+                className="flex items-center gap-1 px-3 py-1 bg-clay-brown text-white rounded-lg hover:bg-blush-pink transition-colors text-sm mr-8"
                 aria-label="Edit Memory"
               >
                 <Edit size={16} />
@@ -93,12 +95,20 @@ const EntryModal: React.FC<EntryModalProps> = ({ entry, onClose, onEntrySaved, v
                         src={entry.media_url} 
                         alt="Memory" 
                         className="w-full h-auto rounded-xl"
+                        loading="lazy"
                       />
                     ) : entry.media_type?.startsWith('video/') ? (
                       <video 
                         src={entry.media_url} 
                         controls 
                         className="w-full h-auto rounded-xl"
+                        preload="metadata"
+                      />
+                    ) : entry.media_type?.startsWith('audio/') ? (
+                      <audio 
+                        src={entry.media_url} 
+                        controls 
+                        className="w-full"
                       />
                     ) : null}
                   </div>

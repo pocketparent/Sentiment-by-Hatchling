@@ -1,4 +1,3 @@
-import axios from 'axios';
 import { useState, useEffect } from 'react';
 import axiosInstance from './axios/axiosInstance';
 
@@ -111,17 +110,44 @@ export function useMediaUpload() {
       formData.append('media', mediaFile.file);
       formData.append('user_id', userId);
       
+      console.log(`📤 Uploading media: ${mediaFile.name} (${formatFileSize(mediaFile.size)})`);
+      
       const response = await axiosInstance.post(`${API_BASE}/upload`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
           'X-User-ID': userId
-        }
+        },
+        // Add timeout and retry logic
+        timeout: 30000, // 30 seconds
+        maxRetries: 2
       });
       
+      console.log(`✅ Media upload successful: ${response.data.media_url}`);
       return response.data.media_url;
     } catch (err: any) {
-      console.error('Media upload error:', err);
-      setError(err.message || 'Failed to upload media. Please try again.');
+      console.error('❌ Media upload error:', err);
+      
+      // Provide more specific error messages
+      if (err.code === 'ECONNABORTED') {
+        setError('Upload timed out. Please try again with a smaller file or check your connection.');
+      } else if (err.response) {
+        // Server responded with an error
+        const status = err.response.status;
+        if (status === 413) {
+          setError('File too large for server. Please try a smaller file.');
+        } else if (status === 415) {
+          setError('Unsupported file type. Please try a different format.');
+        } else {
+          setError(`Server error (${status}): ${err.response.data?.message || 'Failed to upload media'}`);
+        }
+      } else if (err.request) {
+        // Request made but no response received
+        setError('No response from server. Please check your connection and try again.');
+      } else {
+        // Something else went wrong
+        setError(err.message || 'Failed to upload media. Please try again.');
+      }
+      
       return null;
     } finally {
       setIsLoading(false);
@@ -143,13 +169,20 @@ export function useMediaUpload() {
  */
 export async function getMediaUrl(mediaPath: string): Promise<string> {
   try {
+    // Skip if mediaPath is already a full URL
+    if (mediaPath.startsWith('http://') || mediaPath.startsWith('https://')) {
+      return mediaPath;
+    }
+    
+    console.log(`🔍 Getting signed URL for: ${mediaPath}`);
     const response = await axiosInstance.get(`${API_BASE}/url`, {
       params: { path: mediaPath }
     });
     
+    console.log(`✅ Got signed URL: ${response.data.url.substring(0, 50)}...`);
     return response.data.url;
   } catch (error) {
-    console.error('Error getting media URL:', error);
+    console.error('❌ Error getting media URL:', error);
     return mediaPath; // Return original path as fallback
   }
 }
@@ -159,13 +192,34 @@ export async function getMediaUrl(mediaPath: string): Promise<string> {
  */
 export async function deleteMedia(mediaPath: string): Promise<boolean> {
   try {
+    console.log(`🗑️ Deleting media: ${mediaPath}`);
     const response = await axiosInstance.post(`${API_BASE}/delete`, {
       path: mediaPath
     });
     
+    console.log(`✅ Media deleted successfully`);
     return true;
   } catch (error) {
-    console.error('Error deleting media:', error);
+    console.error('❌ Error deleting media:', error);
+    return false;
+  }
+}
+
+/**
+ * Validate that a media URL is accessible
+ */
+export async function validateMediaUrl(url: string): Promise<boolean> {
+  try {
+    // For local development or relative URLs, assume they're valid
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      return true;
+    }
+    
+    // Try to fetch the headers only to check if the URL is valid
+    const response = await axiosInstance.head(url, { timeout: 5000 });
+    return response.status >= 200 && response.status < 400;
+  } catch (error) {
+    console.error('❌ Media URL validation failed:', error);
     return false;
   }
 }
