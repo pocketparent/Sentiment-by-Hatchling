@@ -1,9 +1,0 @@
-flask
-flask-cors
-firebase-admin
-openai>=1.0.0
-stripe
-gunicorn
-python-dotenv
-requests
-twilio
